@@ -1,5 +1,7 @@
 package com.chun.carlife.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -78,6 +80,10 @@ fun AppRoot() {
                 navController = navController,
                 startDestination = "vehicles",
                 modifier = Modifier.padding(padding),
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None },
             ) {
                 composable("vehicles") {
                     VehicleListScreen(
