@@ -171,7 +171,7 @@ private fun RefuelRow(refuel: Refuel, stat: RefuelStat?, onClick: () -> Unit) {
                 Text(formatMoney(refuel.totalCost))
             }
             if (!refuel.fullTank) {
-                Text("満タンではない", style = MaterialTheme.typography.bodySmall)
+                Text("記録漏れあり・参考にしない", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

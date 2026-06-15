@@ -35,9 +35,11 @@ Android SDK は `~/Android/Sdk` を想定。`local.properties` の `sdk.dir` で
 `FuelEconomy.computeStats` は給油リストを **古い順** で受け取る前提。リポジトリは新しい順で返すので、画面側で `asReversed()` してから渡している (`RefuelScreen.kt`, `StatsScreen.kt`)。順序を変える場合はこの境界を明示的にハンドリングすること。
 
 満タンフラグの扱い:
-- 満タン → 満タン区間で `区間距離 ÷ 区間内給油量合計` を算出
-- 途中の半タン給油は次の満タンまで `litersAccum` に蓄積される
-- 各区間の先頭給油 (基準点) と、満タンで閉じきれていない区間は `kmPerLiter = null`
+- **すべての給油は物理的に満タン入れている前提**。`fullTank=false` は「タンクに残量がある」ではなく
+  「**この給油より前の区間に記録忘れがあるかも**」という信頼区間マーカーとして使う
+- 区間燃費: `kmpl = (今回ODO − 前回ODO) / 今回の給油量`。先頭給油は基準なので `null`
+- `fullTank=false` の行は kmpl を `null` にする (前区間が信頼できないため)。ただしその給油の odometer / liters は正しい想定なので、次の区間の起点には**そのまま**使う
+- `summarize` の平均燃費も `fullTank=true` な給油の区間だけを合算 (`Σ距離 / Σ給油量`)
 
 ## 守ってほしいこと
 

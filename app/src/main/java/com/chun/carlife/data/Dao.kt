@@ -34,10 +34,10 @@ interface VehicleDao {
 
 @Dao
 interface RefuelDao {
-    @Query("SELECT * FROM refuels WHERE vehicleId = :vehicleId ORDER BY date DESC, id DESC")
+    @Query("SELECT * FROM refuels WHERE vehicleId = :vehicleId ORDER BY date DESC, odometer DESC, id DESC")
     fun observeByVehicle(vehicleId: Long): Flow<List<Refuel>>
 
-    @Query("SELECT * FROM refuels WHERE vehicleId = :vehicleId ORDER BY date ASC, id ASC")
+    @Query("SELECT * FROM refuels WHERE vehicleId = :vehicleId ORDER BY date ASC, odometer ASC, id ASC")
     suspend fun listByVehicleAsc(vehicleId: Long): List<Refuel>
 
     @Query("SELECT * FROM refuels ORDER BY date DESC LIMIT :limit")
