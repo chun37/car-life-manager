@@ -32,7 +32,13 @@ import com.chun.carlife.ui.refuel.RefuelEditScreen
 import com.chun.carlife.ui.refuel.RefuelAddScreen
 import com.chun.carlife.ui.maintenance.MaintenanceScreen
 import com.chun.carlife.ui.maintenance.MaintenanceEditScreen
+import com.chun.carlife.ui.settings.SettingsGeneralScreen
+import com.chun.carlife.ui.settings.SettingsMaintenanceScreen
+import com.chun.carlife.ui.settings.SettingsRefuelCsvImportScreen
+import com.chun.carlife.ui.settings.SettingsRefuelScreen
 import com.chun.carlife.ui.settings.SettingsScreen
+import com.chun.carlife.ui.settings.SettingsStatsScreen
+import com.chun.carlife.ui.settings.SettingsVehiclesScreen
 import com.chun.carlife.ui.stats.StatsScreen
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
@@ -139,7 +145,35 @@ fun AppRoot() {
                 }
                 composable("stats") { StatsScreen(onOpenSettings = openSettings) }
                 composable("settings") {
-                    SettingsScreen(onBack = { navController.popBackStack() })
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenGeneral = { navController.navigate("settings/general") },
+                        onOpenVehicles = { navController.navigate("settings/vehicles") },
+                        onOpenRefuel = { navController.navigate("settings/refuel") },
+                        onOpenMaintenance = { navController.navigate("settings/maintenance") },
+                        onOpenStats = { navController.navigate("settings/stats") },
+                    )
+                }
+                composable("settings/general") {
+                    SettingsGeneralScreen(onBack = { navController.popBackStack() })
+                }
+                composable("settings/vehicles") {
+                    SettingsVehiclesScreen(onBack = { navController.popBackStack() })
+                }
+                composable("settings/refuel") {
+                    SettingsRefuelScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenCsvImport = { navController.navigate("settings/refuel/csvImport") },
+                    )
+                }
+                composable("settings/refuel/csvImport") {
+                    SettingsRefuelCsvImportScreen(onBack = { navController.popBackStack() })
+                }
+                composable("settings/maintenance") {
+                    SettingsMaintenanceScreen(onBack = { navController.popBackStack() })
+                }
+                composable("settings/stats") {
+                    SettingsStatsScreen(onBack = { navController.popBackStack() })
                 }
             }
         }
