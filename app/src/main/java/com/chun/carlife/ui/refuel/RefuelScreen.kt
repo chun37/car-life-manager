@@ -43,20 +43,20 @@ import com.chun.carlife.ui.util.formatKmpl
 import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
 import com.chun.carlife.ui.util.rememberDatabase
+import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberVehicles
+import com.chun.carlife.ui.util.resolveInitialVehicleId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
     val vehiclesOpt by rememberVehicles()
+    val defaultId by rememberDefaultVehicleId()
     var selectedId by SelectedVehicleStore.state
 
-    LaunchedEffect(vehiclesOpt) {
+    LaunchedEffect(vehiclesOpt, defaultId) {
         val vs = vehiclesOpt ?: return@LaunchedEffect
-        if (selectedId == null && vs.isNotEmpty()) selectedId = vs.first().id
-        if (selectedId != null && vs.none { it.id == selectedId }) {
-            selectedId = vs.firstOrNull()?.id
-        }
+        selectedId = resolveInitialVehicleId(selectedId, vs, defaultId)
     }
 
     Scaffold(

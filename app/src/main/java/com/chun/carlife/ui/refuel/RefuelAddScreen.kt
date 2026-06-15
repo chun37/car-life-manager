@@ -49,6 +49,8 @@ import com.chun.carlife.data.Refuel
 import com.chun.carlife.data.Vehicle
 import com.chun.carlife.ui.util.SelectedVehicleStore
 import com.chun.carlife.ui.util.formatDate
+import com.chun.carlife.ui.util.rememberDefaultVehicleId
+import com.chun.carlife.ui.util.resolveInitialVehicleId
 import com.chun.carlife.ui.util.formatKm
 import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
@@ -76,9 +78,13 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
     var fullTank by remember { mutableStateOf(true) }
     var note by remember { mutableStateOf("") }
 
-    LaunchedEffect(initialVehicleId, vehicles) {
+    val defaultId by rememberDefaultVehicleId()
+    LaunchedEffect(initialVehicleId, vehicles, defaultId) {
         if (selectedVehicleId == null) {
-            selectedVehicleId = if (initialVehicleId != 0L) initialVehicleId else vehicles.firstOrNull()?.id
+            selectedVehicleId = when {
+                initialVehicleId != 0L && vehicles.any { it.id == initialVehicleId } -> initialVehicleId
+                else -> resolveInitialVehicleId(null, vehicles, defaultId)
+            }
         }
     }
 
