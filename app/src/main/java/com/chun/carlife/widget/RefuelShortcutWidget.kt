@@ -6,12 +6,13 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import androidx.annotation.LayoutRes
 import com.chun.carlife.MainActivity
 import com.chun.carlife.R
 import com.chun.carlife.ui.ACTION_ADD_REFUEL
 
-class RefuelShortcutWidget : AppWidgetProvider() {
-    override fun onUpdate(
+abstract class RefuelShortcutWidget(@LayoutRes private val layoutId: Int) : AppWidgetProvider() {
+    final override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
@@ -26,9 +27,13 @@ class RefuelShortcutWidget : AppWidgetProvider() {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val views = RemoteViews(context.packageName, R.layout.widget_refuel_shortcut).apply {
+        val views = RemoteViews(context.packageName, layoutId).apply {
             setOnClickPendingIntent(R.id.widget_refuel_shortcut_root, pendingIntent)
         }
         appWidgetIds.forEach { id -> appWidgetManager.updateAppWidget(id, views) }
     }
 }
+
+class RefuelShortcutWidget1x1 : RefuelShortcutWidget(R.layout.widget_refuel_shortcut_1x1)
+
+class RefuelShortcutWidget2x1 : RefuelShortcutWidget(R.layout.widget_refuel_shortcut_2x1)

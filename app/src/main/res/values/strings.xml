@@ -2,5 +2,7 @@
 <resources>
     <string name="app_name">Car Life Manager</string>
     <string name="widget_refuel_shortcut_label">給油を追加</string>
+    <string name="widget_refuel_shortcut_label_1x1">給油を追加 (1x1)</string>
+    <string name="widget_refuel_shortcut_label_2x1">給油を追加 (2x1)</string>
     <string name="widget_refuel_shortcut_description">タップで給油の追加画面を開きます</string>
 </resources>
