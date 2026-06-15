@@ -16,12 +16,18 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,7 +46,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Maintenance
 import com.chun.carlife.data.ScheduleOverride
-import com.chun.carlife.domain.IntervalOverride
 import com.chun.carlife.domain.MaintenanceSchedule
 import com.chun.carlife.domain.ScheduleItem
 import com.chun.carlife.domain.ScheduleStatus
@@ -86,6 +91,7 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpe
     }.collectAsState(initial = emptyList())
 
     var editingItem by remember { mutableStateOf<ScheduleItem?>(null) }
+    var isNewSchedule by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -122,21 +128,49 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpe
                         refuels.maxOfOrNull { it.odometer } ?: 0,
                         list.maxOfOrNull { it.odometer } ?: 0,
                     )
-                    val overrideMap = remember(overrides) {
-                        overrides.associate { it.category to IntervalOverride(it.intervalKm, it.intervalMonths) }
+                    val schedule = remember(overrides) {
+                        overrides.map {
+                            ScheduleItem(it.category, intervalKm = it.intervalKm, intervalMonths = it.intervalMonths)
+                        }
                     }
-                    val statuses = remember(list, currentOdo, overrideMap) {
-                        MaintenanceSchedule.computeStatuses(list, currentOdo, overrides = overrideMap)
+                    val statuses = remember(list, currentOdo, schedule) {
+                        MaintenanceSchedule.computeStatuses(list, currentOdo, schedule = schedule)
                     }
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         item("schedule-header") {
-                            SectionHeader("メンテナンス予定")
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "メンテナンス予定",
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                TextButton(onClick = {
+                                    editingItem = ScheduleItem("")
+                                    isNewSchedule = true
+                                }) { Text("+ 追加") }
+                            }
                         }
-                        items(statuses, key = { "sched-${it.item.category}" }) { s ->
-                            ScheduleCard(s, onClick = { editingItem = s.item })
+                        if (statuses.isEmpty()) {
+                            item("schedule-empty") {
+                                Text(
+                                    "整備周期はまだ登録されていません。",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(8.dp),
+                                )
+                            }
+                        } else {
+                            items(statuses, key = { "sched-${it.item.category}" }) { s ->
+                                ScheduleCard(s, onClick = {
+                                    editingItem = s.item
+                                    isNewSchedule = false
+                                })
+                            }
                         }
                         item("records-header") {
                             SectionHeader("履歴", topPadding = 12.dp)
@@ -163,28 +197,30 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpe
     val target = editingItem
     val vehicleId = selected?.id
     if (target != null && vehicleId != null) {
+        val close = { editingItem = null; isNewSchedule = false }
         ScheduleEditDialog(
             item = target,
-            onDismiss = { editingItem = null },
-            onSave = { km, months ->
+            isNew = isNewSchedule,
+            onDismiss = close,
+            onSave = { category, km, months ->
                 scope.launch {
                     db.scheduleOverrideDao().upsert(
                         ScheduleOverride(
                             vehicleId = vehicleId,
-                            category = target.category,
+                            category = category,
                             intervalKm = km,
                             intervalMonths = months,
                         ),
                     )
-                    editingItem = null
+                    close()
                 }
             },
-            onReset = {
+            onDelete = if (isNewSchedule) null else ({
                 scope.launch {
                     db.scheduleOverrideDao().deleteByCategory(vehicleId, target.category)
-                    editingItem = null
+                    close()
                 }
-            },
+            }),
         )
     }
 }
@@ -257,21 +293,83 @@ private fun formatInterval(item: ScheduleItem): String {
     return if (parts.isEmpty()) "未設定" else parts.joinToString(" / ")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScheduleEditDialog(
     item: ScheduleItem,
+    isNew: Boolean,
     onDismiss: () -> Unit,
-    onSave: (intervalKm: Int?, intervalMonths: Int?) -> Unit,
-    onReset: () -> Unit,
+    onSave: (category: String, intervalKm: Int?, intervalMonths: Int?) -> Unit,
+    onDelete: (() -> Unit)?,
 ) {
+    var category by remember(item) { mutableStateOf(item.category) }
+    var usePreset by remember(item) {
+        mutableStateOf(isNew || item.category in PRESET_CATEGORIES)
+    }
+    var catExpanded by remember(item) { mutableStateOf(false) }
     var kmText by remember(item) { mutableStateOf(item.intervalKm?.toString() ?: "") }
     var monthsText by remember(item) { mutableStateOf(item.intervalMonths?.toString() ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${item.category} の周期") },
+        title = { Text(if (isNew) "整備周期を追加" else "${item.category} の周期") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (isNew) {
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = usePreset,
+                            onClick = {
+                                if (!usePreset) {
+                                    usePreset = true
+                                    if (category !in PRESET_CATEGORIES) category = ""
+                                }
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        ) { Text("プリセット") }
+                        SegmentedButton(
+                            selected = !usePreset,
+                            onClick = { usePreset = false },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        ) { Text("自由入力") }
+                    }
+                    if (usePreset) {
+                        ExposedDropdownMenuBox(
+                            expanded = catExpanded,
+                            onExpandedChange = { catExpanded = !catExpanded },
+                        ) {
+                            OutlinedTextField(
+                                readOnly = true,
+                                value = category,
+                                onValueChange = {},
+                                label = { Text("種別 *") },
+                                placeholder = { Text("選択してください") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = catExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            )
+                            ExposedDropdownMenu(
+                                expanded = catExpanded,
+                                onDismissRequest = { catExpanded = false },
+                            ) {
+                                PRESET_CATEGORIES.forEach { c ->
+                                    DropdownMenuItem(
+                                        text = { Text(c) },
+                                        onClick = { category = c; catExpanded = false },
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = category,
+                            onValueChange = { category = it },
+                            label = { Text("種別 *") },
+                            placeholder = { Text("自由に入力") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
                 Text(
                     "空欄にするとその基準は使われません。両方空欄なら通知なし。",
                     style = MaterialTheme.typography.bodySmall,
@@ -295,13 +393,16 @@ private fun ScheduleEditDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(parseInt(kmText), parseInt(monthsText)) }) {
-                Text("保存")
-            }
+            TextButton(
+                enabled = category.isNotBlank(),
+                onClick = { onSave(category.trim(), parseInt(kmText), parseInt(monthsText)) },
+            ) { Text("保存") }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onReset) { Text("デフォルトに戻す") }
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) { Text("削除") }
+                }
                 TextButton(onClick = onDismiss) { Text("キャンセル") }
             }
         },

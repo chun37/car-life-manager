@@ -42,21 +42,6 @@ import com.chun.carlife.ui.util.rememberDatabase
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-private val PRESET_CATEGORIES = listOf(
-    "エンジンオイル交換",
-    "オイルフィルター交換",
-    "ミッションオイル交換",
-    "ブレーキオイル交換",
-    "冷却液交換",
-    "空気圧チェック",
-    "ワイパーゴム交換",
-    "ワイパーブレード交換",
-    "エアクリーナー交換",
-    "プラグ交換",
-    "バッテリー交換",
-    "ブレーキパッド交換",
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MaintenanceEditScreen(vehicleId: Long, maintenanceId: Long, onDone: () -> Unit) {

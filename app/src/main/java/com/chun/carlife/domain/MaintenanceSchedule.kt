@@ -9,18 +9,6 @@ data class ScheduleItem(
     val intervalMonths: Int? = null,
 )
 
-/** 一般的なメンテナンス周期のデフォルト値。個別チューニングは後でやる前提。 */
-val DEFAULT_SCHEDULE: List<ScheduleItem> = listOf(
-    ScheduleItem("オイル交換", intervalKm = 5_000, intervalMonths = 6),
-    ScheduleItem("オイルフィルター", intervalKm = 10_000, intervalMonths = 12),
-    ScheduleItem("タイヤローテーション", intervalKm = 10_000, intervalMonths = 6),
-    ScheduleItem("タイヤ交換", intervalKm = 50_000, intervalMonths = 60),
-    ScheduleItem("ブレーキ", intervalKm = 40_000, intervalMonths = 24),
-    ScheduleItem("バッテリー", intervalMonths = 36),
-    ScheduleItem("車検", intervalMonths = 24),
-    ScheduleItem("12ヶ月点検", intervalMonths = 12),
-)
-
 data class ScheduleStatus(
     val item: ScheduleItem,
     val lastDate: Long?,
@@ -42,21 +30,15 @@ data class ScheduleStatus(
         )
 }
 
-data class IntervalOverride(val intervalKm: Int?, val intervalMonths: Int?)
-
 object MaintenanceSchedule {
     private const val MILLIS_PER_DAY = 86_400_000L
 
     fun computeStatuses(
         maintenances: List<Maintenance>,
         currentOdometer: Int,
+        schedule: List<ScheduleItem>,
         now: Long = System.currentTimeMillis(),
-        schedule: List<ScheduleItem> = DEFAULT_SCHEDULE,
-        overrides: Map<String, IntervalOverride> = emptyMap(),
-    ): List<ScheduleStatus> = schedule.map { base ->
-        val item = overrides[base.category]?.let {
-            base.copy(intervalKm = it.intervalKm, intervalMonths = it.intervalMonths)
-        } ?: base
+    ): List<ScheduleStatus> = schedule.map { item ->
         val last = maintenances.filter { it.category == item.category }.maxByOrNull { it.date }
         val kmLeft = if (item.intervalKm != null && last != null) {
             (last.odometer + item.intervalKm) - currentOdometer
