@@ -18,6 +18,9 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -39,9 +42,19 @@ import com.chun.carlife.ui.util.rememberDatabase
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-private val CATEGORIES = listOf(
-    "オイル交換", "オイルフィルター", "タイヤ交換", "タイヤローテーション",
-    "ブレーキ", "バッテリー", "車検", "12ヶ月点検", "洗車", "その他",
+private val PRESET_CATEGORIES = listOf(
+    "エンジンオイル交換",
+    "オイルフィルター交換",
+    "ミッションオイル交換",
+    "ブレーキオイル交換",
+    "冷却液交換",
+    "空気圧チェック",
+    "ワイパーゴム交換",
+    "ワイパーブレード交換",
+    "エアクリーナー交換",
+    "プラグ交換",
+    "バッテリー交換",
+    "ブレーキパッド交換",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,11 +66,12 @@ fun MaintenanceEditScreen(vehicleId: Long, maintenanceId: Long, onDone: () -> Un
 
     var date by remember { mutableStateOf(System.currentTimeMillis()) }
     var odometer by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(CATEGORIES.first()) }
+    var category by remember { mutableStateOf("") }
     var cost by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var existing by remember { mutableStateOf<Maintenance?>(null) }
     var loaded by remember { mutableStateOf(maintenanceId == 0L) }
+    var usePreset by remember { mutableStateOf(true) }
     var catExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(maintenanceId) {
@@ -69,6 +83,7 @@ fun MaintenanceEditScreen(vehicleId: Long, maintenanceId: Long, onDone: () -> Un
                     date = m.date
                     odometer = m.odometer.toString()
                     category = m.category
+                    usePreset = m.category in PRESET_CATEGORIES || m.category.isEmpty()
                     cost = m.cost.toString()
                     note = m.note
                 }
@@ -105,26 +120,55 @@ fun MaintenanceEditScreen(vehicleId: Long, maintenanceId: Long, onDone: () -> Un
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("日付: ${formatDate(date)}") }
 
-            ExposedDropdownMenuBox(
-                expanded = catExpanded,
-                onExpandedChange = { catExpanded = !catExpanded },
-            ) {
-                OutlinedTextField(
-                    readOnly = true,
-                    value = category,
-                    onValueChange = {},
-                    label = { Text("種別") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = catExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
-                )
-                ExposedDropdownMenu(
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = usePreset,
+                    onClick = {
+                        if (!usePreset) {
+                            usePreset = true
+                            if (category !in PRESET_CATEGORIES) category = ""
+                        }
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) { Text("プリセット") }
+                SegmentedButton(
+                    selected = !usePreset,
+                    onClick = { usePreset = false },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) { Text("自由入力") }
+            }
+
+            if (usePreset) {
+                ExposedDropdownMenuBox(
                     expanded = catExpanded,
-                    onDismissRequest = { catExpanded = false },
+                    onExpandedChange = { catExpanded = !catExpanded },
                 ) {
-                    CATEGORIES.forEach { c ->
-                        DropdownMenuItem(text = { Text(c) }, onClick = { category = c; catExpanded = false })
+                    OutlinedTextField(
+                        readOnly = true,
+                        value = category,
+                        onValueChange = {},
+                        label = { Text("種別 *") },
+                        placeholder = { Text("選択してください") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = catExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = catExpanded,
+                        onDismissRequest = { catExpanded = false },
+                    ) {
+                        PRESET_CATEGORIES.forEach { c ->
+                            DropdownMenuItem(text = { Text(c) }, onClick = { category = c; catExpanded = false })
+                        }
                     }
                 }
+            } else {
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = { category = it },
+                    label = { Text("種別 *") },
+                    placeholder = { Text("自由に入力") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             OutlinedTextField(
@@ -153,18 +197,20 @@ fun MaintenanceEditScreen(vehicleId: Long, maintenanceId: Long, onDone: () -> Un
                 Button(
                     onClick = {
                         val odo = parseInt(odometer) ?: return@Button
+                        val cat = category.trim()
+                        if (cat.isEmpty()) return@Button
                         val c = parseDouble(cost) ?: 0.0
                         val m = (existing ?: Maintenance(
                             vehicleId = vehicleId,
                             date = date,
                             odometer = odo,
-                            category = category,
+                            category = cat,
                             cost = c,
                             note = note,
                         )).copy(
                             date = date,
                             odometer = odo,
-                            category = category,
+                            category = cat,
                             cost = c,
                             note = note,
                         )
@@ -173,7 +219,7 @@ fun MaintenanceEditScreen(vehicleId: Long, maintenanceId: Long, onDone: () -> Un
                             onDone()
                         }
                     },
-                    enabled = parseInt(odometer) != null,
+                    enabled = parseInt(odometer) != null && category.isNotBlank(),
                     modifier = Modifier.weight(1f),
                 ) { Text("保存") }
             }
