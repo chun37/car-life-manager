@@ -27,6 +27,7 @@ import com.chun.carlife.ui.vehicles.VehicleEditScreen
 import com.chun.carlife.ui.vehicles.VehicleListScreen
 import com.chun.carlife.ui.refuel.RefuelScreen
 import com.chun.carlife.ui.refuel.RefuelEditScreen
+import com.chun.carlife.ui.refuel.RefuelAddScreen
 import com.chun.carlife.ui.maintenance.MaintenanceScreen
 import com.chun.carlife.ui.maintenance.MaintenanceEditScreen
 import com.chun.carlife.ui.stats.StatsScreen
@@ -90,8 +91,15 @@ fun AppRoot() {
                 }
                 composable("refuel") {
                     RefuelScreen(
-                        onAdd = { vehicleId -> navController.navigate("refuelEdit/$vehicleId/0") },
+                        onAdd = { vehicleId -> navController.navigate("refuelAdd/$vehicleId") },
                         onEdit = { vehicleId, id -> navController.navigate("refuelEdit/$vehicleId/$id") },
+                    )
+                }
+                composable("refuelAdd/{vehicleId}") { backStackEntry ->
+                    val vehicleId = backStackEntry.arguments?.getString("vehicleId")?.toLongOrNull() ?: 0L
+                    RefuelAddScreen(
+                        initialVehicleId = vehicleId,
+                        onDone = { navController.popBackStack() },
                     )
                 }
                 composable("refuelEdit/{vehicleId}/{id}") { backStackEntry ->
