@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.domain.FuelEconomy
 import com.chun.carlife.ui.util.SelectedVehicleStore
+import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.VehiclePicker
 import com.chun.carlife.ui.util.formatKm
 import com.chun.carlife.ui.util.formatKmpl
@@ -46,7 +47,7 @@ import com.chun.carlife.ui.util.resolveInitialVehicleId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen() {
+fun StatsScreen(onOpenSettings: () -> Unit) {
     val db = rememberDatabase()
     val vehiclesOpt by rememberVehicles()
     val defaultId by rememberDefaultVehicleId()
@@ -65,7 +66,14 @@ fun StatsScreen() {
         else db.maintenanceDao().observeByVehicle(selected.id)
     }.collectAsState(initial = emptyList())
 
-    Scaffold(topBar = { TopAppBar(title = { Text("集計") }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("集計") },
+                actions = { SettingsAction(onClick = onOpenSettings) },
+            )
+        },
+    ) { padding ->
         val vehicles = vehiclesOpt
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp)

@@ -43,13 +43,14 @@ import com.chun.carlife.ui.util.formatKmpl
 import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
 import com.chun.carlife.ui.util.rememberDatabase
+import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberVehicles
 import com.chun.carlife.ui.util.resolveInitialVehicleId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
+fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpenSettings: () -> Unit) {
     val vehiclesOpt by rememberVehicles()
     val defaultId by rememberDefaultVehicleId()
     var selectedId by SelectedVehicleStore.state
@@ -60,7 +61,12 @@ fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("給油・燃費") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("給油・燃費") },
+                actions = { SettingsAction(onClick = onOpenSettings) },
+            )
+        },
         floatingActionButton = {
             val id = selectedId
             if (id != null && vehiclesOpt?.isNotEmpty() == true) {

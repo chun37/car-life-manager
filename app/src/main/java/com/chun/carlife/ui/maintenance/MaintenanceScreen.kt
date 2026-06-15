@@ -35,6 +35,7 @@ import com.chun.carlife.data.Maintenance
 import com.chun.carlife.domain.MaintenanceSchedule
 import com.chun.carlife.domain.ScheduleStatus
 import com.chun.carlife.ui.util.SelectedVehicleStore
+import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.VehiclePicker
 import com.chun.carlife.ui.util.formatDate
 import com.chun.carlife.ui.util.formatKm
@@ -48,7 +49,7 @@ import com.chun.carlife.ui.util.resolveInitialVehicleId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
+fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpenSettings: () -> Unit) {
     val db = rememberDatabase()
     val vehiclesOpt by rememberVehicles()
     val defaultId by rememberDefaultVehicleId()
@@ -68,7 +69,12 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
     }.collectAsState(initial = emptyList())
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("整備記録") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("整備記録") },
+                actions = { SettingsAction(onClick = onOpenSettings) },
+            )
+        },
         floatingActionButton = {
             val id = selected?.id
             if (id != null) {

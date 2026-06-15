@@ -32,6 +32,7 @@ import com.chun.carlife.ui.refuel.RefuelEditScreen
 import com.chun.carlife.ui.refuel.RefuelAddScreen
 import com.chun.carlife.ui.maintenance.MaintenanceScreen
 import com.chun.carlife.ui.maintenance.MaintenanceEditScreen
+import com.chun.carlife.ui.settings.SettingsScreen
 import com.chun.carlife.ui.stats.StatsScreen
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
@@ -85,10 +86,12 @@ fun AppRoot() {
                 popEnterTransition = { EnterTransition.None },
                 popExitTransition = { ExitTransition.None },
             ) {
+                val openSettings: () -> Unit = { navController.navigate("settings") }
                 composable("vehicles") {
                     VehicleListScreen(
                         onAdd = { navController.navigate("vehicleEdit/0") },
                         onEdit = { id -> navController.navigate("vehicleEdit/$id") },
+                        onOpenSettings = openSettings,
                     )
                 }
                 composable("vehicleEdit/{id}") { backStackEntry ->
@@ -99,6 +102,7 @@ fun AppRoot() {
                     RefuelScreen(
                         onAdd = { vehicleId -> navController.navigate("refuelAdd/$vehicleId") },
                         onEdit = { vehicleId, id -> navController.navigate("refuelEdit/$vehicleId/$id") },
+                        onOpenSettings = openSettings,
                     )
                 }
                 composable("refuelAdd/{vehicleId}") { backStackEntry ->
@@ -121,6 +125,7 @@ fun AppRoot() {
                     MaintenanceScreen(
                         onAdd = { vehicleId -> navController.navigate("maintenanceEdit/$vehicleId/0") },
                         onEdit = { vehicleId, id -> navController.navigate("maintenanceEdit/$vehicleId/$id") },
+                        onOpenSettings = openSettings,
                     )
                 }
                 composable("maintenanceEdit/{vehicleId}/{id}") { backStackEntry ->
@@ -132,7 +137,10 @@ fun AppRoot() {
                         onDone = { navController.popBackStack() },
                     )
                 }
-                composable("stats") { StatsScreen() }
+                composable("stats") { StatsScreen(onOpenSettings = openSettings) }
+                composable("settings") {
+                    SettingsScreen(onBack = { navController.popBackStack() })
+                }
             }
         }
     }

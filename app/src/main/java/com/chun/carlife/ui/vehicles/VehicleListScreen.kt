@@ -31,19 +31,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Vehicle
+import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberSetDefaultVehicleId
 import com.chun.carlife.ui.util.rememberVehicles
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VehicleListScreen(onAdd: () -> Unit, onEdit: (Long) -> Unit) {
+fun VehicleListScreen(onAdd: () -> Unit, onEdit: (Long) -> Unit, onOpenSettings: () -> Unit) {
     val vehiclesOpt by rememberVehicles()
     val defaultId by rememberDefaultVehicleId()
     val setDefault = rememberSetDefaultVehicleId()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("車両") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("車両") },
+                actions = { SettingsAction(onClick = onOpenSettings) },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAdd) {
                 Icon(Icons.Filled.Add, contentDescription = "追加")
