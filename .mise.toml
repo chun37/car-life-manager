@@ -1,0 +1,7 @@
+[tools]
+java = "temurin-17.0.19+10"
+gradle = "8.10.2"
+
+[env]
+ANDROID_HOME = "{{env.HOME}}/Android/Sdk"
+ANDROID_SDK_ROOT = "{{env.HOME}}/Android/Sdk"
