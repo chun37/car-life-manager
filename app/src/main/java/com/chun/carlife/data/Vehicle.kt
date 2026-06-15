@@ -12,5 +12,7 @@ data class Vehicle(
     val plateNumber: String = "",
     val initialOdometer: Int = 0,
     val fuelTankCapacityLiters: Double? = null,
+    /** "FUEL" or "ELECTRIC". 表示単位の出し分けに使う。 */
+    val energyKind: String = "FUEL",
     val createdAt: Long = System.currentTimeMillis(),
 )

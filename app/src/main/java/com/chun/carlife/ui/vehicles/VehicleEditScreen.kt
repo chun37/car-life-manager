@@ -29,7 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import com.chun.carlife.data.Vehicle
+import com.chun.carlife.domain.EnergyKind
+import com.chun.carlife.ui.util.labels
 import com.chun.carlife.ui.util.parseDouble
 import com.chun.carlife.ui.util.parseInt
 import com.chun.carlife.ui.util.rememberDatabase
@@ -47,6 +52,7 @@ fun VehicleEditScreen(vehicleId: Long, onDone: () -> Unit) {
     var plate by remember { mutableStateOf("") }
     var odometer by remember { mutableStateOf("") }
     var tank by remember { mutableStateOf("") }
+    var energyKind by remember { mutableStateOf(EnergyKind.FUEL) }
     var loaded by remember { mutableStateOf(vehicleId == 0L) }
     var existing by remember { mutableStateOf<Vehicle?>(null) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -62,6 +68,7 @@ fun VehicleEditScreen(vehicleId: Long, onDone: () -> Unit) {
                 plate = v.plateNumber
                 odometer = if (v.initialOdometer > 0) v.initialOdometer.toString() else ""
                 tank = v.fuelTankCapacityLiters?.toString() ?: ""
+                energyKind = EnergyKind.from(v.energyKind)
             }
             loaded = true
         }
@@ -83,6 +90,17 @@ fun VehicleEditScreen(vehicleId: Long, onDone: () -> Unit) {
             OutlinedTextField(value = maker, onValueChange = { maker = it }, label = { Text("メーカー") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("型式・モデル") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = plate, onValueChange = { plate = it }, label = { Text("ナンバー") }, modifier = Modifier.fillMaxWidth())
+            Text("動力源", style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val options = listOf(EnergyKind.FUEL to "ガソリン", EnergyKind.ELECTRIC to "電気 (EV)")
+                options.forEachIndexed { i, (kindOption, label) ->
+                    SegmentedButton(
+                        selected = energyKind == kindOption,
+                        onClick = { energyKind = kindOption },
+                        shape = SegmentedButtonDefaults.itemShape(index = i, count = options.size),
+                    ) { Text(label) }
+                }
+            }
             OutlinedTextField(
                 value = odometer,
                 onValueChange = { odometer = it.filter { c -> c.isDigit() } },
@@ -93,7 +111,7 @@ fun VehicleEditScreen(vehicleId: Long, onDone: () -> Unit) {
             OutlinedTextField(
                 value = tank,
                 onValueChange = { tank = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text("タンク容量 (L) 任意") },
+                label = { Text(energyKind.labels().capacityLabel) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -112,6 +130,7 @@ fun VehicleEditScreen(vehicleId: Long, onDone: () -> Unit) {
                             plateNumber = plate.trim(),
                             initialOdometer = parseInt(odometer) ?: 0,
                             fuelTankCapacityLiters = parseDouble(tank),
+                            energyKind = energyKind.name,
                         )
                         scope.launch {
                             if (v.id == 0L) db.vehicleDao().upsert(v) else db.vehicleDao().update(v)

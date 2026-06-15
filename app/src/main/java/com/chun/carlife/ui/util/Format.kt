@@ -1,5 +1,6 @@
 package com.chun.carlife.ui.util
 
+import com.chun.carlife.domain.EnergyKind
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -11,8 +12,13 @@ private val moneyFmt = NumberFormat.getNumberInstance(Locale.JAPAN)
 
 fun formatDate(epochMillis: Long): String = dateFmt.format(Date(epochMillis))
 fun formatMoney(value: Double): String = "¥" + moneyFmt.format(value.toLong())
-fun formatLiters(value: Double): String = String.format(Locale.US, "%.2f L", value)
-fun formatKmpl(value: Double?): String = value?.let { String.format(Locale.US, "%.2f km/L", it) } ?: "-"
+
+fun formatAmount(value: Double, kind: EnergyKind = EnergyKind.FUEL): String =
+    String.format(Locale.US, "%.2f %s", value, kind.labels().amountUnit)
+
+fun formatEfficiency(value: Double?, kind: EnergyKind = EnergyKind.FUEL): String =
+    value?.let { String.format(Locale.US, "%.2f %s", it, kind.labels().efficiencyUnit) } ?: "-"
+
 fun formatKm(value: Int): String = moneyFmt.format(value) + " km"
 
 fun parseDouble(text: String): Double? = text.replace(",", "").trim().toDoubleOrNull()

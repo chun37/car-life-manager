@@ -70,17 +70,20 @@ fun SettingsRefuelCsvImportScreen(onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text("CSV フォーマット", style = MaterialTheme.typography.titleSmall)
-                    Text("必須: " + RefuelCsvImporter.ALL_HEADERS.take(5).joinToString("、"))
-                    Text("任意: " + RefuelCsvImporter.ALL_HEADERS.drop(5).joinToString("、"))
+                    Text("必須: 車両、日付、走行距離、合計金額、給油量 (EV は 充電量)")
+                    Text("任意: 単価 / kWh単価、満タン / 満充電、メモ")
                     Text(
                         text = """
                             車両,日付,走行距離,給油量,単価,合計金額,満タン,メモ
                             プリウス,2026/06/15,55000,30.5,180,5500,true,セルフ
-                            プリウス,2026/05/20,54000,28.0,175,4900,true,
+                            リーフ,2026/06/14,12000,18.5,30,555,true,自宅
                         """.trimIndent(),
                         style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     )
-                    Text("日付は yyyy/MM/dd, yyyy-MM-dd, yyyy.MM.dd のいずれか。満タンは true/false。")
+                    Text(
+                        "EV 車両は 給油量 → 充電量、単価 → kWh単価、満タン → 満充電 のヘッダ名でも受け付けます。" +
+                            "日付は yyyy/MM/dd, yyyy-MM-dd, yyyy.MM.dd のいずれか。満タン (満充電) は true/false。",
+                    )
                 }
             }
 

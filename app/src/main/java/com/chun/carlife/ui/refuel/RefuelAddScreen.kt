@@ -47,13 +47,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Refuel
 import com.chun.carlife.data.Vehicle
+import com.chun.carlife.domain.EnergyKind
+import com.chun.carlife.domain.energy
+import com.chun.carlife.ui.util.EnergyLabels
 import com.chun.carlife.ui.util.SelectedVehicleStore
+import com.chun.carlife.ui.util.formatAmount
 import com.chun.carlife.ui.util.formatDate
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.resolveInitialVehicleId
 import com.chun.carlife.ui.util.formatKm
-import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
+import com.chun.carlife.ui.util.labels
 import com.chun.carlife.ui.util.parseDouble
 import com.chun.carlife.ui.util.parseInt
 import com.chun.carlife.ui.util.rememberDatabase
@@ -91,11 +95,13 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
     BackHandler(enabled = step > 0) { step-- }
 
     val selectedVehicle = vehicles.firstOrNull { it.id == selectedVehicleId }
+    val kind = selectedVehicle?.energy ?: EnergyKind.FUEL
+    val labels = kind.labels()
 
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(title = { Text("給油を追加  ${step + 1}/${STEP_COUNT}") })
+                TopAppBar(title = { Text("${labels.addTitle}  ${step + 1}/${STEP_COUNT}") })
                 LinearProgressIndicator(
                     progress = { (step + 1) / STEP_COUNT.toFloat() },
                     modifier = Modifier.fillMaxWidth(),
@@ -127,12 +133,14 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
                 )
                 2 -> StepLiters(
                     value = liters,
+                    labels = labels,
                     onChange = { liters = it },
                     onSubmit = { if ((parseDouble(liters) ?: 0.0) > 0.0) step++ },
                 )
                 3 -> StepTotalCost(
                     value = totalCost,
                     liters = liters,
+                    labels = labels,
                     onChange = { totalCost = it },
                     onSubmit = { if ((parseDouble(totalCost) ?: 0.0) > 0.0) step++ },
                 )
@@ -144,6 +152,7 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
                     totalCost = totalCost,
                     fullTank = fullTank,
                     note = note,
+                    labels = labels,
                     onDateChange = { date = it },
                     onFullTankChange = { fullTank = it },
                     onNoteChange = { note = it },
@@ -280,13 +289,13 @@ private fun StepOdometer(value: String, onChange: (String) -> Unit, onSubmit: ()
 }
 
 @Composable
-private fun StepLiters(value: String, onChange: (String) -> Unit, onSubmit: () -> Unit) {
-    StepHeader("給油量を入力", hint = "入力後、キーボードの完了キーで次へ")
+private fun StepLiters(value: String, labels: EnergyLabels, onChange: (String) -> Unit, onSubmit: () -> Unit) {
+    StepHeader("${labels.amountLabel}を入力", hint = "入力後、キーボードの完了キーで次へ")
     AutoFocusedNumberField(
         value = value,
         onChange = onChange,
         onSubmit = onSubmit,
-        label = "L",
+        label = labels.amountUnit,
         keyboardType = KeyboardType.Decimal,
         digitFilter = { it.isDigit() || it == '.' },
     )
@@ -296,6 +305,7 @@ private fun StepLiters(value: String, onChange: (String) -> Unit, onSubmit: () -
 private fun StepTotalCost(
     value: String,
     liters: String,
+    labels: EnergyLabels,
     onChange: (String) -> Unit,
     onSubmit: () -> Unit,
 ) {
@@ -311,7 +321,7 @@ private fun StepTotalCost(
     val l = parseDouble(liters)
     val total = parseDouble(value)
     if (l != null && l > 0 && total != null && total > 0) {
-        Text("単価: ${"%.2f".format(total / l)} 円/L", style = MaterialTheme.typography.bodyMedium)
+        Text("単価: ${"%.2f".format(total / l)} ${labels.unitPriceShort}", style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -324,18 +334,20 @@ private fun StepConfirm(
     totalCost: String,
     fullTank: Boolean,
     note: String,
+    labels: EnergyLabels,
     onDateChange: (Long) -> Unit,
     onFullTankChange: (Boolean) -> Unit,
     onNoteChange: (String) -> Unit,
     onSave: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    val kind = vehicle?.energy ?: EnergyKind.FUEL
     StepHeader("内容を確認")
     Card(elevation = CardDefaults.cardElevation(1.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             SummaryRow("車両", vehicle?.name ?: "-")
             SummaryRow("走行距離", formatKm(parseInt(odometer) ?: 0))
-            SummaryRow("給油量", formatLiters(parseDouble(liters) ?: 0.0))
+            SummaryRow(labels.amountLabel, formatAmount(parseDouble(liters) ?: 0.0, kind))
             SummaryRow("合計", formatMoney(parseDouble(totalCost) ?: 0.0))
         }
     }
@@ -359,7 +371,7 @@ private fun StepConfirm(
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked = fullTank, onCheckedChange = onFullTankChange)
-        Text("満タン給油（燃費計算の基準になります）")
+        Text(labels.fullTankLabel)
     }
     OutlinedTextField(
         value = note,

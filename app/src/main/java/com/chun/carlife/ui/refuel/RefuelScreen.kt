@@ -33,15 +33,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Refuel
 import com.chun.carlife.data.Vehicle
+import com.chun.carlife.domain.EnergyKind
 import com.chun.carlife.domain.FuelEconomy
 import com.chun.carlife.domain.RefuelStat
+import com.chun.carlife.domain.energy
 import com.chun.carlife.ui.util.SelectedVehicleStore
 import com.chun.carlife.ui.util.VehiclePicker
+import com.chun.carlife.ui.util.formatAmount
 import com.chun.carlife.ui.util.formatDate
+import com.chun.carlife.ui.util.formatEfficiency
 import com.chun.carlife.ui.util.formatKm
-import com.chun.carlife.ui.util.formatKmpl
-import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
+import com.chun.carlife.ui.util.labels
 import com.chun.carlife.ui.util.rememberDatabase
 import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
@@ -60,10 +63,12 @@ fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpenSett
         selectedId = resolveInitialVehicleId(selectedId, vs, defaultId)
     }
 
+    val selectedVehicle = vehiclesOpt?.firstOrNull { it.id == selectedId }
+    val labels = (selectedVehicle?.energy ?: EnergyKind.FUEL).labels()
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("給油・燃費") },
+                title = { Text(labels.tabTitle) },
                 actions = { SettingsAction(onClick = onOpenSettings) },
             )
         },
@@ -71,7 +76,7 @@ fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpenSett
             val id = selectedId
             if (id != null && vehiclesOpt?.isNotEmpty() == true) {
                 FloatingActionButton(onClick = { onAdd(id) }) {
-                    Icon(Icons.Filled.Add, contentDescription = "給油を追加")
+                    Icon(Icons.Filled.Add, contentDescription = labels.addTitle)
                 }
             }
         },
@@ -109,6 +114,8 @@ private fun RefuelBody(vehicle: Vehicle, onEdit: (Long, Long) -> Unit) {
         db.refuelDao().observeByVehicle(vehicle.id)
     }.collectAsState(initial = emptyList())
 
+    val kind = vehicle.energy
+    val labels = kind.labels()
     val asc = refuels.asReversed()
     val stats = remember(asc) { FuelEconomy.computeStats(asc) }
     val summary = remember(asc) { FuelEconomy.summarize(asc) }
@@ -117,16 +124,16 @@ private fun RefuelBody(vehicle: Vehicle, onEdit: (Long, Long) -> Unit) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(vehicle.name, style = MaterialTheme.typography.titleMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("平均燃費")
-                Text(formatKmpl(summary.averageKmPerLiter), style = MaterialTheme.typography.titleSmall)
+                Text(labels.averageLabel)
+                Text(formatEfficiency(summary.averageKmPerLiter, kind), style = MaterialTheme.typography.titleSmall)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("総走行")
                 Text(formatKm(summary.totalDistanceKm))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("総給油")
-                Text(formatLiters(summary.totalLiters))
+                Text(labels.totalAmountLabel)
+                Text(formatAmount(summary.totalLiters, kind))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("総額")
@@ -137,7 +144,7 @@ private fun RefuelBody(vehicle: Vehicle, onEdit: (Long, Long) -> Unit) {
 
     if (refuels.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("給油記録はまだありません。")
+            Text("${labels.verb}記録はまだありません。")
         }
     } else {
         // 表示は新しい順 (= refuels)。stats は古い順なので逆引きマップで紐づける。
@@ -147,6 +154,7 @@ private fun RefuelBody(vehicle: Vehicle, onEdit: (Long, Long) -> Unit) {
                 RefuelRow(
                     refuel = r,
                     stat = statByRefuelId[r.id],
+                    kind = kind,
                     onClick = { onEdit(vehicle.id, r.id) },
                 )
             }
@@ -155,7 +163,7 @@ private fun RefuelBody(vehicle: Vehicle, onEdit: (Long, Long) -> Unit) {
 }
 
 @Composable
-private fun RefuelRow(refuel: Refuel, stat: RefuelStat?, onClick: () -> Unit) {
+private fun RefuelRow(refuel: Refuel, stat: RefuelStat?, kind: EnergyKind, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         elevation = CardDefaults.cardElevation(1.dp),
@@ -163,11 +171,11 @@ private fun RefuelRow(refuel: Refuel, stat: RefuelStat?, onClick: () -> Unit) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(formatDate(refuel.date), style = MaterialTheme.typography.titleSmall)
-                Text(formatKmpl(stat?.kmPerLiter), style = MaterialTheme.typography.titleSmall)
+                Text(formatEfficiency(stat?.kmPerLiter, kind), style = MaterialTheme.typography.titleSmall)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(formatKm(refuel.odometer))
-                Text(formatLiters(refuel.liters))
+                Text(formatAmount(refuel.liters, kind))
                 Text(formatMoney(refuel.totalCost))
             }
             if (!refuel.fullTank) {

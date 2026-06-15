@@ -17,9 +17,15 @@ data class CsvImportResult(
 object RefuelCsvImporter {
     private val DATE_PATTERNS = listOf("yyyy/MM/dd", "yyyy-MM-dd", "yyyy.MM.dd")
 
-    private val REQUIRED_HEADERS = listOf("車両", "日付", "走行距離", "給油量", "合計金額")
-    private val OPTIONAL_HEADERS = listOf("単価", "満タン", "メモ")
-    val ALL_HEADERS = REQUIRED_HEADERS + OPTIONAL_HEADERS
+    // 量・単価・満タンは EV (充電量 / kWh単価 / 満充電) と FUEL (給油量 / 単価 / 満タン) を
+    // 同じ意味として受け入れる。CSV は「給油量 か 充電量」のどちらかが必須。
+    private val AMOUNT_ALIASES = listOf("給油量", "充電量")
+    private val UNIT_PRICE_ALIASES = listOf("単価", "kWh単価")
+    private val FULL_TANK_ALIASES = listOf("満タン", "満充電")
+
+    private val FIXED_REQUIRED_HEADERS = listOf("車両", "日付", "走行距離", "合計金額")
+    private val OPTIONAL_HEADERS = UNIT_PRICE_ALIASES + FULL_TANK_ALIASES + listOf("メモ")
+    val ALL_HEADERS = FIXED_REQUIRED_HEADERS + AMOUNT_ALIASES + OPTIONAL_HEADERS
 
     suspend fun import(ctx: Context, db: AppDatabase, uri: Uri): CsvImportResult =
         withContext(Dispatchers.IO) {
@@ -31,14 +37,21 @@ object RefuelCsvImporter {
             if (lines.isEmpty()) return@withContext CsvImportResult(0, 0, listOf("ファイルが空です"))
 
             val header = parseCsvLine(lines[0]).map { it.trim() }
-            val missing = REQUIRED_HEADERS.filter { it !in header }
-            if (missing.isNotEmpty()) {
+            val missingFixed = FIXED_REQUIRED_HEADERS.filter { it !in header }
+            val hasAmount = AMOUNT_ALIASES.any { it in header }
+            if (missingFixed.isNotEmpty() || !hasAmount) {
+                val missing = missingFixed + if (!hasAmount) listOf(AMOUNT_ALIASES.joinToString(" / ")) else emptyList()
                 return@withContext CsvImportResult(
                     0, 0,
                     listOf("必須カラム不足: " + missing.joinToString("、")),
                 )
             }
             val idx = ALL_HEADERS.associateWith { header.indexOf(it) }
+            fun firstColumn(aliases: List<String>): Int =
+                aliases.map { idx[it] ?: -1 }.firstOrNull { it >= 0 } ?: -1
+            val amountCol = firstColumn(AMOUNT_ALIASES)
+            val unitPriceCol = firstColumn(UNIT_PRICE_ALIASES)
+            val fullTankCol = firstColumn(FULL_TANK_ALIASES)
 
             val vehicles = db.vehicleDao().getAll()
             val vehicleByName = vehicles.associateBy { it.name }
@@ -60,14 +73,12 @@ object RefuelCsvImporter {
                     }
                     val date = parseDate(cols[idx["日付"]!!].trim())
                     val odo = cols[idx["走行距離"]!!].trim().toInt()
-                    val liters = cols[idx["給油量"]!!].trim().toDouble()
+                    val liters = cols[amountCol].trim().toDouble()
                     val total = cols[idx["合計金額"]!!].trim().toDouble()
 
-                    val unit = idx["単価"]?.let { ix -> if (ix >= 0) cols.getOrNull(ix)?.trim()?.toDoubleOrNull() else null }
+                    val unit = if (unitPriceCol >= 0) cols.getOrNull(unitPriceCol)?.trim()?.toDoubleOrNull() else null
                     val ppl = unit ?: if (liters > 0) total / liters else 0.0
-                    val fullTank = idx["満タン"]?.let { ix ->
-                        if (ix >= 0) cols.getOrNull(ix)?.trim()?.let(::parseBool) else null
-                    } ?: true
+                    val fullTank = if (fullTankCol >= 0) cols.getOrNull(fullTankCol)?.trim()?.let(::parseBool) ?: true else true
                     val note = idx["メモ"]?.let { ix ->
                         if (ix >= 0) cols.getOrNull(ix).orEmpty() else ""
                     } ?: ""

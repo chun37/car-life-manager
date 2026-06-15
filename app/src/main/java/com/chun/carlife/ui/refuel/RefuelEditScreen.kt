@@ -29,7 +29,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Refuel
+import com.chun.carlife.domain.EnergyKind
+import com.chun.carlife.domain.energy
 import com.chun.carlife.ui.util.formatDate
+import com.chun.carlife.ui.util.labels
 import com.chun.carlife.ui.util.parseDouble
 import com.chun.carlife.ui.util.parseInt
 import com.chun.carlife.ui.util.rememberDatabase
@@ -54,6 +57,11 @@ fun RefuelEditScreen(vehicleId: Long, refuelId: Long, onDone: () -> Unit) {
     var note by remember { mutableStateOf("") }
     var existing by remember { mutableStateOf<Refuel?>(null) }
     var loaded by remember { mutableStateOf(refuelId == 0L) }
+    var vehicleKind by remember { mutableStateOf(EnergyKind.FUEL) }
+
+    LaunchedEffect(vehicleId) {
+        vehicleKind = db.vehicleDao().getById(vehicleId)?.energy ?: EnergyKind.FUEL
+    }
 
     LaunchedEffect(refuelId) {
         if (refuelId != 0L) {
@@ -73,8 +81,9 @@ fun RefuelEditScreen(vehicleId: Long, refuelId: Long, onDone: () -> Unit) {
         }
     }
 
+    val labels = vehicleKind.labels()
     Scaffold(
-        topBar = { TopAppBar(title = { Text(if (refuelId == 0L) "給油を追加" else "給油を編集") }) },
+        topBar = { TopAppBar(title = { Text(if (refuelId == 0L) labels.addTitle else labels.editTitle) }) },
     ) { padding ->
         if (!loaded) return@Scaffold
         Column(
@@ -115,7 +124,7 @@ fun RefuelEditScreen(vehicleId: Long, refuelId: Long, onDone: () -> Unit) {
                     val p = parseDouble(pricePerLiter)
                     if (l != null && p != null) totalCost = String.format("%.0f", l * p)
                 },
-                label = { Text("給油量 (L) *") },
+                label = { Text("${labels.amountLabel} (${labels.amountUnit}) *") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -127,7 +136,7 @@ fun RefuelEditScreen(vehicleId: Long, refuelId: Long, onDone: () -> Unit) {
                     val p = parseDouble(pricePerLiter)
                     if (l != null && p != null) totalCost = String.format("%.0f", l * p)
                 },
-                label = { Text("単価 (円/L)") },
+                label = { Text(labels.unitPriceLabel) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -140,7 +149,7 @@ fun RefuelEditScreen(vehicleId: Long, refuelId: Long, onDone: () -> Unit) {
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = fullTank, onCheckedChange = { fullTank = it })
-                Text("満タン給油（燃費計算の基準になります）")
+                Text(labels.fullTankLabel)
             }
             OutlinedTextField(
                 value = note,

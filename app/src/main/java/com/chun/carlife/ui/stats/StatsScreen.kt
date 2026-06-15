@@ -31,14 +31,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.chun.carlife.domain.EnergyKind
 import com.chun.carlife.domain.FuelEconomy
+import com.chun.carlife.domain.energy
+import com.chun.carlife.ui.util.EnergyLabels
 import com.chun.carlife.ui.util.SelectedVehicleStore
 import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.VehiclePicker
+import com.chun.carlife.ui.util.formatAmount
+import com.chun.carlife.ui.util.formatEfficiency
 import com.chun.carlife.ui.util.formatKm
-import com.chun.carlife.ui.util.formatKmpl
-import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
+import com.chun.carlife.ui.util.labels
 import com.chun.carlife.ui.util.monthKey
 import com.chun.carlife.ui.util.rememberDatabase
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
@@ -90,6 +94,8 @@ fun StatsScreen(onOpenSettings: () -> Unit) {
             VehiclePicker(vehicles = vehicles, selected = selected, onSelect = { selectedId = it.id })
             if (selected == null) return@Column
 
+            val kind = selected.energy
+            val labels = kind.labels()
             val asc = refuels.asReversed()
             val summary = remember(asc) { FuelEconomy.summarize(asc) }
             val stats = remember(asc) { FuelEconomy.computeStats(asc) }
@@ -100,12 +106,14 @@ fun StatsScreen(onOpenSettings: () -> Unit) {
                 totalLiters = summary.totalLiters,
                 fuelCost = summary.totalCost,
                 maintCost = maintenances.sumOf { it.cost },
+                kind = kind,
+                labels = labels,
             )
 
             val kmplSeries = stats.mapNotNull { it.kmPerLiter }
             if (kmplSeries.size >= 2) {
-                ChartCard(title = "燃費推移 (km/L)") {
-                    LineChart(values = kmplSeries, color = MaterialTheme.colorScheme.primary)
+                ChartCard(title = labels.efficiencyChartTitle) {
+                    LineChart(values = kmplSeries, color = MaterialTheme.colorScheme.primary, kind = kind)
                 }
             }
 
@@ -127,7 +135,7 @@ fun StatsScreen(onOpenSettings: () -> Unit) {
             }
             if (monthly.isNotEmpty()) {
                 ChartCard(title = "月別 費用 (¥)") {
-                    BarChart(monthly)
+                    BarChart(monthly, fuelLegend = labels.totalCostLabel.removeSuffix("合計"))
                 }
             }
         }
@@ -135,14 +143,22 @@ fun StatsScreen(onOpenSettings: () -> Unit) {
 }
 
 @Composable
-private fun SummaryCard(avg: Double?, totalKm: Int, totalLiters: Double, fuelCost: Double, maintCost: Double) {
+private fun SummaryCard(
+    avg: Double?,
+    totalKm: Int,
+    totalLiters: Double,
+    fuelCost: Double,
+    maintCost: Double,
+    kind: EnergyKind,
+    labels: EnergyLabels,
+) {
     Card(elevation = CardDefaults.cardElevation(2.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("サマリ", style = MaterialTheme.typography.titleMedium)
-            StatRow("平均燃費", formatKmpl(avg))
+            StatRow(labels.averageLabel, formatEfficiency(avg, kind))
             StatRow("総走行", formatKm(totalKm))
-            StatRow("総給油", formatLiters(totalLiters))
-            StatRow("燃料費合計", formatMoney(fuelCost))
+            StatRow(labels.totalAmountLabel, formatAmount(totalLiters, kind))
+            StatRow(labels.totalCostLabel, formatMoney(fuelCost))
             StatRow("整備費合計", formatMoney(maintCost))
             StatRow("総支出", formatMoney(fuelCost + maintCost))
         }
@@ -168,7 +184,7 @@ private fun ChartCard(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun LineChart(values: List<Double>, color: Color) {
+private fun LineChart(values: List<Double>, color: Color, kind: EnergyKind) {
     val maxV = values.max()
     val minV = values.min()
     val range = (maxV - minV).takeIf { it > 0 } ?: 1.0
@@ -187,13 +203,13 @@ private fun LineChart(values: List<Double>, color: Color) {
         drawLine(color = Color.Gray.copy(alpha = 0.4f), start = Offset(0f, h - pad), end = Offset(w, h - pad), strokeWidth = 1f)
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(formatKmpl(minV), style = MaterialTheme.typography.bodySmall)
-        Text(formatKmpl(maxV), style = MaterialTheme.typography.bodySmall)
+        Text(formatEfficiency(minV, kind), style = MaterialTheme.typography.bodySmall)
+        Text(formatEfficiency(maxV, kind), style = MaterialTheme.typography.bodySmall)
     }
 }
 
 @Composable
-private fun BarChart(items: List<Triple<String, Double, Double>>) {
+private fun BarChart(items: List<Triple<String, Double, Double>>, fuelLegend: String) {
     val maxV = items.maxOf { it.second + it.third }.coerceAtLeast(1.0)
     val fuelColor = MaterialTheme.colorScheme.primary
     val maintColor = MaterialTheme.colorScheme.tertiary
@@ -219,7 +235,7 @@ private fun BarChart(items: List<Triple<String, Double, Double>>) {
         Text(items.last().first, style = MaterialTheme.typography.bodySmall)
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        LegendDot(fuelColor); Text("燃料費", style = MaterialTheme.typography.bodySmall)
+        LegendDot(fuelColor); Text(fuelLegend, style = MaterialTheme.typography.bodySmall)
         LegendDot(maintColor); Text("整備費", style = MaterialTheme.typography.bodySmall)
     }
 }

@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Vehicle
+import com.chun.carlife.domain.EnergyKind
+import com.chun.carlife.domain.energy
 import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberSetDefaultVehicleId
@@ -106,7 +108,17 @@ private fun VehicleRow(
                     .clickable { onClick() }
                     .padding(16.dp),
             ) {
-                Text(v.name, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(v.name, style = MaterialTheme.typography.titleMedium)
+                    if (v.energy == EnergyKind.ELECTRIC) {
+                        Text(
+                            "EV",
+                            modifier = Modifier.padding(start = 8.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
                 val sub = listOfNotNull(
                     v.maker.takeIf { it.isNotBlank() },
                     v.model.takeIf { it.isNotBlank() },
