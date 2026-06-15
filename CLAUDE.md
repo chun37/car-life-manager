@@ -29,7 +29,15 @@ Android SDK は `~/Android/Sdk` を想定。`local.properties` の `sdk.dir` で
 ### データモデル
 
 `Vehicle 1 — N (Refuel | Maintenance | ScheduleOverride)`。外部キーは `onDelete = CASCADE`。
-`AppDatabase` は **本物の `Migration` を書く運用**に切り替え済み (`fallbackToDestructiveMigration` は使っていない)。スキーマ変更時は `version` を上げ、対応する `Migration` を `addMigrations(...)` に追加する。既存の `MIGRATION_1_2` (schedule_overrides テーブル追加) が雛形。
+`AppDatabase` は **本物の `Migration` を書く運用**に切り替え済み (`fallbackToDestructiveMigration` は使っていない)。スキーマ変更時は `version` を上げ、対応する `Migration` を `addMigrations(...)` に追加する。既存の `MIGRATION_1_2` (schedule_overrides テーブル追加) と `MIGRATION_2_3` (vehicles.energyKind カラム追加・既存行は `FUEL` で埋まる) が雛形。
+
+### 動力源 (ガソリン / EV) の出し分け
+
+`Vehicle.energyKind: String` (`"FUEL"` / `"ELECTRIC"`) を持ち、UI 側は `domain.EnergyKind` enum + `Vehicle.energy` 拡張で扱う。表示の単位やラベル (給油↔充電 / L↔kWh / 円/L↔円/kWh / km/L↔km/kWh / 満タン↔満充電 / 燃料費↔電気代) は **すべて `ui/util/EnergyLabels.kt` の `EnergyLabels` バンドルと `formatAmount` / `formatEfficiency` に集約**。
+
+- `Refuel` テーブルは EV 車両でも再利用：`liters` を kWh、`pricePerLiter` を 円/kWh として保存し、計算ロジック (`FuelEconomy`) は単位を意識しない
+- 新しく単位を出す場所を増やすときは `formatAmount(value, kind)` / `formatEfficiency(value, kind)` を使い、Hard-coded な "L" / "km/L" は入れない
+- CSV インポートは「給油量 ↔ 充電量」「単価 ↔ kWh単価」「満タン ↔ 満充電」を **エイリアス** として受け入れる (`RefuelCsvImporter.AMOUNT_ALIASES` 等)
 
 ### ホーム画面ウィジェット → 給油追加
 
