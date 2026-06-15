@@ -10,29 +10,39 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Maintenance
+import com.chun.carlife.data.ScheduleOverride
+import com.chun.carlife.domain.IntervalOverride
 import com.chun.carlife.domain.MaintenanceSchedule
+import com.chun.carlife.domain.ScheduleItem
 import com.chun.carlife.domain.ScheduleStatus
 import com.chun.carlife.ui.util.SelectedVehicleStore
 import com.chun.carlife.ui.util.SettingsAction
@@ -42,15 +52,18 @@ import com.chun.carlife.ui.util.formatKm
 import com.chun.carlife.ui.util.formatMoney
 import com.chun.carlife.ui.util.formatRemainingDays
 import com.chun.carlife.ui.util.formatRemainingKm
+import com.chun.carlife.ui.util.parseInt
 import com.chun.carlife.ui.util.rememberDatabase
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberVehicles
 import com.chun.carlife.ui.util.resolveInitialVehicleId
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpenSettings: () -> Unit) {
     val db = rememberDatabase()
+    val scope = rememberCoroutineScope()
     val vehiclesOpt by rememberVehicles()
     val defaultId by rememberDefaultVehicleId()
     var selectedId by SelectedVehicleStore.state
@@ -67,6 +80,12 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpe
         if (selected == null) kotlinx.coroutines.flow.flowOf(emptyList())
         else db.refuelDao().observeByVehicle(selected.id)
     }.collectAsState(initial = emptyList())
+    val overrides by remember(selected?.id) {
+        if (selected == null) kotlinx.coroutines.flow.flowOf(emptyList())
+        else db.scheduleOverrideDao().observeByVehicle(selected.id)
+    }.collectAsState(initial = emptyList())
+
+    var editingItem by remember { mutableStateOf<ScheduleItem?>(null) }
 
     Scaffold(
         topBar = {
@@ -103,8 +122,11 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpe
                         refuels.maxOfOrNull { it.odometer } ?: 0,
                         list.maxOfOrNull { it.odometer } ?: 0,
                     )
-                    val statuses = remember(list, currentOdo) {
-                        MaintenanceSchedule.computeStatuses(list, currentOdo)
+                    val overrideMap = remember(overrides) {
+                        overrides.associate { it.category to IntervalOverride(it.intervalKm, it.intervalMonths) }
+                    }
+                    val statuses = remember(list, currentOdo, overrideMap) {
+                        MaintenanceSchedule.computeStatuses(list, currentOdo, overrides = overrideMap)
                     }
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -114,7 +136,7 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpe
                             SectionHeader("メンテナンス予定")
                         }
                         items(statuses, key = { "sched-${it.item.category}" }) { s ->
-                            ScheduleCard(s)
+                            ScheduleCard(s, onClick = { editingItem = s.item })
                         }
                         item("records-header") {
                             SectionHeader("履歴", topPadding = 12.dp)
@@ -137,6 +159,34 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpe
             }
         }
     }
+
+    val target = editingItem
+    val vehicleId = selected?.id
+    if (target != null && vehicleId != null) {
+        ScheduleEditDialog(
+            item = target,
+            onDismiss = { editingItem = null },
+            onSave = { km, months ->
+                scope.launch {
+                    db.scheduleOverrideDao().upsert(
+                        ScheduleOverride(
+                            vehicleId = vehicleId,
+                            category = target.category,
+                            intervalKm = km,
+                            intervalMonths = months,
+                        ),
+                    )
+                    editingItem = null
+                }
+            },
+            onReset = {
+                scope.launch {
+                    db.scheduleOverrideDao().deleteByCategory(vehicleId, target.category)
+                    editingItem = null
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -149,7 +199,7 @@ private fun SectionHeader(text: String, topPadding: androidx.compose.ui.unit.Dp 
 }
 
 @Composable
-private fun ScheduleCard(s: ScheduleStatus) {
+private fun ScheduleCard(s: ScheduleStatus, onClick: () -> Unit) {
     val containerColor = when {
         s.isOverdue -> MaterialTheme.colorScheme.errorContainer
         s.isSoon -> Color(0xFFFFF4E5)
@@ -160,7 +210,7 @@ private fun ScheduleCard(s: ScheduleStatus) {
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = containerColor, contentColor = contentColor),
         elevation = CardDefaults.cardElevation(1.dp),
     ) {
@@ -172,29 +222,90 @@ private fun ScheduleCard(s: ScheduleStatus) {
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
+            val intervalText = formatInterval(s.item)
             if (!s.hasHistory) {
-                val interval = buildString {
-                    s.item.intervalKm?.let { append("${it / 1000}千km") }
-                    if (s.item.intervalKm != null && s.item.intervalMonths != null) append(" / ")
-                    s.item.intervalMonths?.let { append("${it}ヶ月") }
-                }
-                Text("$interval ごと", style = MaterialTheme.typography.bodyMedium)
+                Text("$intervalText ごと", style = MaterialTheme.typography.bodyMedium)
             } else {
                 val parts = listOfNotNull(
                     s.kmLeft?.let { formatRemainingKm(it) },
                     s.daysLeft?.let { formatRemainingDays(it) },
                 )
-                Text(
-                    text = parts.joinToString(" / "),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                if (parts.isNotEmpty()) {
+                    Text(
+                        text = parts.joinToString(" / "),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
                 Text(
                     text = "前回: ${formatDate(s.lastDate!!)}  ${formatKm(s.lastOdometer ?: 0)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "周期: $intervalText",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
     }
+}
+
+private fun formatInterval(item: ScheduleItem): String {
+    val parts = buildList {
+        item.intervalKm?.let { add("${it / 1000}千km") }
+        item.intervalMonths?.let { add("${it}ヶ月") }
+    }
+    return if (parts.isEmpty()) "未設定" else parts.joinToString(" / ")
+}
+
+@Composable
+private fun ScheduleEditDialog(
+    item: ScheduleItem,
+    onDismiss: () -> Unit,
+    onSave: (intervalKm: Int?, intervalMonths: Int?) -> Unit,
+    onReset: () -> Unit,
+) {
+    var kmText by remember(item) { mutableStateOf(item.intervalKm?.toString() ?: "") }
+    var monthsText by remember(item) { mutableStateOf(item.intervalMonths?.toString() ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("${item.category} の周期") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "空欄にするとその基準は使われません。両方空欄なら通知なし。",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = kmText,
+                    onValueChange = { kmText = it.filter { c -> c.isDigit() } },
+                    label = { Text("距離 (km)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = monthsText,
+                    onValueChange = { monthsText = it.filter { c -> c.isDigit() } },
+                    label = { Text("月数") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(parseInt(kmText), parseInt(monthsText)) }) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onReset) { Text("デフォルトに戻す") }
+                TextButton(onClick = onDismiss) { Text("キャンセル") }
+            }
+        },
+    )
 }
 
 @Composable

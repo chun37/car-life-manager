@@ -42,6 +42,8 @@ data class ScheduleStatus(
         )
 }
 
+data class IntervalOverride(val intervalKm: Int?, val intervalMonths: Int?)
+
 object MaintenanceSchedule {
     private const val MILLIS_PER_DAY = 86_400_000L
 
@@ -50,7 +52,11 @@ object MaintenanceSchedule {
         currentOdometer: Int,
         now: Long = System.currentTimeMillis(),
         schedule: List<ScheduleItem> = DEFAULT_SCHEDULE,
-    ): List<ScheduleStatus> = schedule.map { item ->
+        overrides: Map<String, IntervalOverride> = emptyMap(),
+    ): List<ScheduleStatus> = schedule.map { base ->
+        val item = overrides[base.category]?.let {
+            base.copy(intervalKm = it.intervalKm, intervalMonths = it.intervalMonths)
+        } ?: base
         val last = maintenances.filter { it.category == item.category }.maxByOrNull { it.date }
         val kmLeft = if (item.intervalKm != null && last != null) {
             (last.odometer + item.intervalKm) - currentOdometer

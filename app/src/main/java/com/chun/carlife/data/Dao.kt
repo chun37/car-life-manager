@@ -61,3 +61,15 @@ interface MaintenanceDao {
     @Delete
     suspend fun delete(maintenance: Maintenance)
 }
+
+@Dao
+interface ScheduleOverrideDao {
+    @Query("SELECT * FROM schedule_overrides WHERE vehicleId = :vehicleId")
+    fun observeByVehicle(vehicleId: Long): Flow<List<ScheduleOverride>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(override: ScheduleOverride): Long
+
+    @Query("DELETE FROM schedule_overrides WHERE vehicleId = :vehicleId AND category = :category")
+    suspend fun deleteByCategory(vehicleId: Long, category: String)
+}

@@ -6,14 +6,15 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [Vehicle::class, Refuel::class, Maintenance::class],
-    version = 1,
+    entities = [Vehicle::class, Refuel::class, Maintenance::class, ScheduleOverride::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun vehicleDao(): VehicleDao
     abstract fun refuelDao(): RefuelDao
     abstract fun maintenanceDao(): MaintenanceDao
+    abstract fun scheduleOverrideDao(): ScheduleOverrideDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
