@@ -1,6 +1,7 @@
 package com.chun.carlife.ui.refuel
 
 import android.app.DatePickerDialog
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,7 +39,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Refuel
@@ -77,16 +82,9 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
         }
     }
 
+    BackHandler(enabled = step > 0) { step-- }
+
     val selectedVehicle = vehicles.firstOrNull { it.id == selectedVehicleId }
-    val canNext: Boolean = when (step) {
-        0 -> selectedVehicle != null
-        1 -> (parseInt(odometer) ?: 0) > 0
-        2 -> (parseDouble(liters) ?: 0.0) > 0.0
-        3 -> (parseDouble(totalCost) ?: 0.0) > 0.0
-        4 -> true
-        else -> false
-    }
-    val isLast = step == STEP_COUNT - 1
 
     Scaffold(
         topBar = {
@@ -96,46 +94,6 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
                     progress = { (step + 1) / STEP_COUNT.toFloat() },
                     modifier = Modifier.fillMaxWidth(),
                 )
-            }
-        },
-        bottomBar = {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = { if (step == 0) onDone() else step-- },
-                    modifier = Modifier.weight(1f),
-                ) { Text(if (step == 0) "キャンセル" else "戻る") }
-                Button(
-                    onClick = {
-                        if (!isLast) {
-                            step++
-                        } else {
-                            val v = selectedVehicle ?: return@Button
-                            val odo = parseInt(odometer) ?: return@Button
-                            val l = parseDouble(liters) ?: return@Button
-                            val total = parseDouble(totalCost) ?: return@Button
-                            val unit = if (l > 0) total / l else 0.0
-                            val r = Refuel(
-                                vehicleId = v.id,
-                                date = date,
-                                odometer = odo,
-                                liters = l,
-                                pricePerLiter = unit,
-                                totalCost = total,
-                                fullTank = fullTank,
-                                note = note,
-                            )
-                            scope.launch {
-                                db.refuelDao().upsert(r)
-                                onDone()
-                            }
-                        }
-                    },
-                    enabled = canNext,
-                    modifier = Modifier.weight(1f),
-                ) { Text(if (isLast) "保存" else "次へ") }
             }
         },
     ) { padding ->
@@ -148,10 +106,30 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             when (step) {
-                0 -> StepVehicle(vehicles, selectedVehicle, onSelect = { selectedVehicleId = it.id })
-                1 -> StepOdometer(value = odometer, onChange = { odometer = it })
-                2 -> StepLiters(value = liters, onChange = { liters = it })
-                3 -> StepTotalCost(value = totalCost, liters = liters, onChange = { totalCost = it })
+                0 -> StepVehicle(
+                    vehicles = vehicles,
+                    selected = selectedVehicle,
+                    onSelect = {
+                        selectedVehicleId = it.id
+                        step++
+                    },
+                )
+                1 -> StepOdometer(
+                    value = odometer,
+                    onChange = { odometer = it },
+                    onSubmit = { if ((parseInt(odometer) ?: 0) > 0) step++ },
+                )
+                2 -> StepLiters(
+                    value = liters,
+                    onChange = { liters = it },
+                    onSubmit = { if ((parseDouble(liters) ?: 0.0) > 0.0) step++ },
+                )
+                3 -> StepTotalCost(
+                    value = totalCost,
+                    liters = liters,
+                    onChange = { totalCost = it },
+                    onSubmit = { if ((parseDouble(totalCost) ?: 0.0) > 0.0) step++ },
+                )
                 4 -> StepConfirm(
                     vehicle = selectedVehicle,
                     date = date,
@@ -163,6 +141,27 @@ fun RefuelAddScreen(initialVehicleId: Long, onDone: () -> Unit) {
                     onDateChange = { date = it },
                     onFullTankChange = { fullTank = it },
                     onNoteChange = { note = it },
+                    onSave = {
+                        val v = selectedVehicle ?: return@StepConfirm
+                        val odo = parseInt(odometer) ?: return@StepConfirm
+                        val l = parseDouble(liters) ?: return@StepConfirm
+                        val total = parseDouble(totalCost) ?: return@StepConfirm
+                        val unit = if (l > 0) total / l else 0.0
+                        val r = Refuel(
+                            vehicleId = v.id,
+                            date = date,
+                            odometer = odo,
+                            liters = l,
+                            pricePerLiter = unit,
+                            totalCost = total,
+                            fullTank = fullTank,
+                            note = note,
+                        )
+                        scope.launch {
+                            db.refuelDao().upsert(r)
+                            onDone()
+                        }
+                    },
                 )
             }
         }
@@ -179,7 +178,7 @@ private fun StepHeader(title: String, hint: String? = null) {
 
 @Composable
 private fun StepVehicle(vehicles: List<Vehicle>, selected: Vehicle?, onSelect: (Vehicle) -> Unit) {
-    StepHeader("どの車両の給油ですか？")
+    StepHeader("どの車両の給油ですか？", hint = "タップで選択して次のステップに進みます")
     if (vehicles.isEmpty()) {
         Text("先に「車両」タブから車両を登録してください。")
         return
@@ -240,41 +239,68 @@ private fun VehicleSelectCard(vehicle: Vehicle, isSelected: Boolean, onClick: ()
 }
 
 @Composable
-private fun StepOdometer(value: String, onChange: (String) -> Unit) {
-    StepHeader("走行距離 (ODO) を入力", hint = "現在のメーター表示の km 数")
+private fun AutoFocusedNumberField(
+    value: String,
+    onChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    label: String,
+    keyboardType: KeyboardType,
+    digitFilter: (Char) -> Boolean,
+) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
     OutlinedTextField(
         value = value,
-        onValueChange = { onChange(it.filter { c -> c.isDigit() }) },
-        label = { Text("km") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(),
+        onValueChange = { onChange(it.filter(digitFilter)) },
+        label = { Text(label) },
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
         singleLine = true,
     )
 }
 
 @Composable
-private fun StepLiters(value: String, onChange: (String) -> Unit) {
-    StepHeader("給油量を入力", hint = "リットル単位")
-    OutlinedTextField(
+private fun StepOdometer(value: String, onChange: (String) -> Unit, onSubmit: () -> Unit) {
+    StepHeader("走行距離 (ODO) を入力", hint = "入力後、キーボードの完了キーで次へ")
+    AutoFocusedNumberField(
         value = value,
-        onValueChange = { onChange(it.filter { c -> c.isDigit() || c == '.' }) },
-        label = { Text("L") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
+        onChange = onChange,
+        onSubmit = onSubmit,
+        label = "km",
+        keyboardType = KeyboardType.Number,
+        digitFilter = { it.isDigit() },
     )
 }
 
 @Composable
-private fun StepTotalCost(value: String, liters: String, onChange: (String) -> Unit) {
-    StepHeader("合計金額を入力", hint = "支払った金額の合計")
-    OutlinedTextField(
+private fun StepLiters(value: String, onChange: (String) -> Unit, onSubmit: () -> Unit) {
+    StepHeader("給油量を入力", hint = "入力後、キーボードの完了キーで次へ")
+    AutoFocusedNumberField(
         value = value,
-        onValueChange = { onChange(it.filter { c -> c.isDigit() || c == '.' }) },
-        label = { Text("円") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
+        onChange = onChange,
+        onSubmit = onSubmit,
+        label = "L",
+        keyboardType = KeyboardType.Decimal,
+        digitFilter = { it.isDigit() || it == '.' },
+    )
+}
+
+@Composable
+private fun StepTotalCost(
+    value: String,
+    liters: String,
+    onChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    StepHeader("合計金額を入力", hint = "入力後、キーボードの完了キーで次へ")
+    AutoFocusedNumberField(
+        value = value,
+        onChange = onChange,
+        onSubmit = onSubmit,
+        label = "円",
+        keyboardType = KeyboardType.Decimal,
+        digitFilter = { it.isDigit() || it == '.' },
     )
     val l = parseDouble(liters)
     val total = parseDouble(value)
@@ -295,6 +321,7 @@ private fun StepConfirm(
     onDateChange: (Long) -> Unit,
     onFullTankChange: (Boolean) -> Unit,
     onNoteChange: (String) -> Unit,
+    onSave: () -> Unit,
 ) {
     val ctx = LocalContext.current
     StepHeader("内容を確認")
@@ -334,6 +361,7 @@ private fun StepConfirm(
         label = { Text("メモ (任意)") },
         modifier = Modifier.fillMaxWidth(),
     )
+    Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("保存") }
 }
 
 @Composable
