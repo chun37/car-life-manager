@@ -43,18 +43,19 @@ import com.chun.carlife.ui.util.formatKmpl
 import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
 import com.chun.carlife.ui.util.rememberDatabase
+import com.chun.carlife.ui.util.rememberVehicles
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
-    val db = rememberDatabase()
-    val vehicles by remember { db.vehicleDao().observeAll() }.collectAsState(initial = emptyList())
+    val vehiclesOpt by rememberVehicles()
     var selectedId by SelectedVehicleStore.state
 
-    LaunchedEffect(vehicles) {
-        if (selectedId == null && vehicles.isNotEmpty()) selectedId = vehicles.first().id
-        if (selectedId != null && vehicles.none { it.id == selectedId }) {
-            selectedId = vehicles.firstOrNull()?.id
+    LaunchedEffect(vehiclesOpt) {
+        val vs = vehiclesOpt ?: return@LaunchedEffect
+        if (selectedId == null && vs.isNotEmpty()) selectedId = vs.first().id
+        if (selectedId != null && vs.none { it.id == selectedId }) {
+            selectedId = vs.firstOrNull()?.id
         }
     }
 
@@ -62,30 +63,35 @@ fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
         topBar = { TopAppBar(title = { Text("給油・燃費") }) },
         floatingActionButton = {
             val id = selectedId
-            if (id != null) {
+            if (id != null && vehiclesOpt?.isNotEmpty() == true) {
                 FloatingActionButton(onClick = { onAdd(id) }) {
                     Icon(Icons.Filled.Add, contentDescription = "給油を追加")
                 }
             }
         },
     ) { padding ->
+        val vehicles = vehiclesOpt
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (vehicles.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("先に「車両」タブから車両を登録してください。")
+            when {
+                vehicles == null -> Unit
+                vehicles.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("先に「車両」タブから車両を登録してください。")
+                    }
                 }
-                return@Column
+                else -> {
+                    val selected = vehicles.firstOrNull { it.id == selectedId }
+                    VehiclePicker(
+                        vehicles = vehicles,
+                        selected = selected,
+                        onSelect = { selectedId = it.id },
+                    )
+                    if (selected != null) RefuelBody(vehicle = selected, onEdit = onEdit)
+                }
             }
-            val selected = vehicles.firstOrNull { it.id == selectedId }
-            VehiclePicker(
-                vehicles = vehicles,
-                selected = selected,
-                onSelect = { selectedId = it.id },
-            )
-            if (selected != null) RefuelBody(vehicle = selected, onEdit = onEdit)
         }
     }
 }

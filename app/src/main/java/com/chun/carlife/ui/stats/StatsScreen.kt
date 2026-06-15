@@ -40,20 +40,22 @@ import com.chun.carlife.ui.util.formatLiters
 import com.chun.carlife.ui.util.formatMoney
 import com.chun.carlife.ui.util.monthKey
 import com.chun.carlife.ui.util.rememberDatabase
+import com.chun.carlife.ui.util.rememberVehicles
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen() {
     val db = rememberDatabase()
-    val vehicles by remember { db.vehicleDao().observeAll() }.collectAsState(initial = emptyList())
+    val vehiclesOpt by rememberVehicles()
     var selectedId by SelectedVehicleStore.state
-    LaunchedEffect(vehicles) {
-        if (selectedId == null && vehicles.isNotEmpty()) selectedId = vehicles.first().id
-        if (selectedId != null && vehicles.none { it.id == selectedId }) {
-            selectedId = vehicles.firstOrNull()?.id
+    LaunchedEffect(vehiclesOpt) {
+        val vs = vehiclesOpt ?: return@LaunchedEffect
+        if (selectedId == null && vs.isNotEmpty()) selectedId = vs.first().id
+        if (selectedId != null && vs.none { it.id == selectedId }) {
+            selectedId = vs.firstOrNull()?.id
         }
     }
-    val selected = vehicles.firstOrNull { it.id == selectedId }
+    val selected = vehiclesOpt?.firstOrNull { it.id == selectedId }
     val refuels by remember(selected?.id) {
         if (selected == null) kotlinx.coroutines.flow.flowOf(emptyList())
         else db.refuelDao().observeByVehicle(selected.id)
@@ -64,11 +66,13 @@ fun StatsScreen() {
     }.collectAsState(initial = emptyList())
 
     Scaffold(topBar = { TopAppBar(title = { Text("集計") }) }) { padding ->
+        val vehicles = vehiclesOpt
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (vehicles == null) return@Column
             if (vehicles.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("先に「車両」タブから車両を登録してください。")

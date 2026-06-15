@@ -20,22 +20,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Vehicle
-import com.chun.carlife.ui.util.rememberDatabase
-import kotlinx.coroutines.flow.Flow
+import com.chun.carlife.ui.util.rememberVehicles
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleListScreen(onAdd: () -> Unit, onEdit: (Long) -> Unit) {
-    val db = rememberDatabase()
-    val vehiclesFlow: Flow<List<Vehicle>> = remember { db.vehicleDao().observeAll() }
-    val vehicles by vehiclesFlow.collectAsState(initial = emptyList())
+    val vehiclesOpt by rememberVehicles()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("車両") }) },
@@ -45,16 +40,21 @@ fun VehicleListScreen(onAdd: () -> Unit, onEdit: (Long) -> Unit) {
             }
         },
     ) { padding ->
-        if (vehicles.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                Text("まだ車両がありません。右下の + から登録してください。")
+        val vehicles = vehiclesOpt
+        when {
+            vehicles == null -> Unit
+            vehicles.isEmpty() -> {
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Text("まだ車両がありません。右下の + から登録してください。")
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(vehicles, key = { it.id }) { v -> VehicleRow(v, onClick = { onEdit(v.id) }) }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(vehicles, key = { it.id }) { v -> VehicleRow(v, onClick = { onEdit(v.id) }) }
+                }
             }
         }
     }

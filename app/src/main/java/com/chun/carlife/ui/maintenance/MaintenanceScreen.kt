@@ -37,20 +37,22 @@ import com.chun.carlife.ui.util.formatDate
 import com.chun.carlife.ui.util.formatKm
 import com.chun.carlife.ui.util.formatMoney
 import com.chun.carlife.ui.util.rememberDatabase
+import com.chun.carlife.ui.util.rememberVehicles
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
     val db = rememberDatabase()
-    val vehicles by remember { db.vehicleDao().observeAll() }.collectAsState(initial = emptyList())
+    val vehiclesOpt by rememberVehicles()
     var selectedId by SelectedVehicleStore.state
-    LaunchedEffect(vehicles) {
-        if (selectedId == null && vehicles.isNotEmpty()) selectedId = vehicles.first().id
-        if (selectedId != null && vehicles.none { it.id == selectedId }) {
-            selectedId = vehicles.firstOrNull()?.id
+    LaunchedEffect(vehiclesOpt) {
+        val vs = vehiclesOpt ?: return@LaunchedEffect
+        if (selectedId == null && vs.isNotEmpty()) selectedId = vs.first().id
+        if (selectedId != null && vs.none { it.id == selectedId }) {
+            selectedId = vs.firstOrNull()?.id
         }
     }
-    val selected = vehicles.firstOrNull { it.id == selectedId }
+    val selected = vehiclesOpt?.firstOrNull { it.id == selectedId }
     val list by remember(selected?.id) {
         if (selected == null) kotlinx.coroutines.flow.flowOf(emptyList())
         else db.maintenanceDao().observeByVehicle(selected.id)
@@ -67,25 +69,30 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
             }
         },
     ) { padding ->
+        val vehicles = vehiclesOpt
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (vehicles.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("先に「車両」タブから車両を登録してください。")
+            when {
+                vehicles == null -> Unit
+                vehicles.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("先に「車両」タブから車両を登録してください。")
+                    }
                 }
-                return@Column
-            }
-            VehiclePicker(vehicles = vehicles, selected = selected, onSelect = { selectedId = it.id })
-            if (list.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("整備記録はまだありません。")
-                }
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(list, key = { it.id }) { m ->
-                        MaintenanceRow(m, onClick = { onEdit(selected!!.id, m.id) })
+                else -> {
+                    VehiclePicker(vehicles = vehicles, selected = selected, onSelect = { selectedId = it.id })
+                    if (list.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("整備記録はまだありません。")
+                        }
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(list, key = { it.id }) { m ->
+                                MaintenanceRow(m, onClick = { onEdit(selected!!.id, m.id) })
+                            }
+                        }
                     }
                 }
             }
