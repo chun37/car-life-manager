@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -15,6 +16,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +49,7 @@ fun VehicleEditScreen(vehicleId: Long, onDone: () -> Unit) {
     var tank by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(vehicleId == 0L) }
     var existing by remember { mutableStateOf<Vehicle?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(vehicleId) {
         if (vehicleId != 0L) {
@@ -121,15 +124,33 @@ fun VehicleEditScreen(vehicleId: Long, onDone: () -> Unit) {
             }
             if (existing != null) {
                 OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            db.vehicleDao().delete(existing!!)
-                            onDone()
-                        }
-                    },
+                    onClick = { showDeleteConfirm = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("この車両を削除") }
             }
         }
+    }
+
+    if (showDeleteConfirm && existing != null) {
+        val target = existing!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("車両を削除しますか?") },
+            text = {
+                Text("「${target.name}」と紐づく給油・整備の記録もすべて削除されます。この操作は取り消せません。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    scope.launch {
+                        db.vehicleDao().delete(target)
+                        onDone()
+                    }
+                }) { Text("削除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("キャンセル") }
+            },
+        )
     }
 }
