@@ -47,7 +47,6 @@ import com.chun.carlife.ui.util.parseInt
 import com.chun.carlife.ui.util.rememberDatabase
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberVehicles
-import com.chun.carlife.ui.util.resolveInitialVehicleId
 import kotlinx.coroutines.launch
 
 @Composable
@@ -59,7 +58,7 @@ fun SettingsMaintenanceScreen(onBack: () -> Unit) {
     var selectedId by SelectedVehicleStore.state
     LaunchedEffect(vehiclesOpt, defaultId) {
         val vs = vehiclesOpt ?: return@LaunchedEffect
-        selectedId = resolveInitialVehicleId(selectedId, vs, defaultId)
+        SelectedVehicleStore.syncWithDefault(vs, defaultId)
     }
     val selected = vehiclesOpt?.firstOrNull { it.id == selectedId }
     val overrides by remember(selected?.id) {

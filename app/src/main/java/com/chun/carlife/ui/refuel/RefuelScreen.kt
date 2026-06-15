@@ -49,7 +49,6 @@ import com.chun.carlife.ui.util.rememberDatabase
 import com.chun.carlife.ui.util.SettingsAction
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberVehicles
-import com.chun.carlife.ui.util.resolveInitialVehicleId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +59,7 @@ fun RefuelScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit, onOpenSett
 
     LaunchedEffect(vehiclesOpt, defaultId) {
         val vs = vehiclesOpt ?: return@LaunchedEffect
-        selectedId = resolveInitialVehicleId(selectedId, vs, defaultId)
+        SelectedVehicleStore.syncWithDefault(vs, defaultId)
     }
 
     val selectedVehicle = vehiclesOpt?.firstOrNull { it.id == selectedId }
