@@ -24,11 +24,19 @@ Android SDK は `~/Android/Sdk` を想定。`local.properties` の `sdk.dir` で
 - `CarLifeApp` が `AppDatabase` を保持するシングルトンの入口
 - `ui/util/AppDb.kt` の `rememberDatabase()` で Composable から DB に到達
 - 画面間でユーザーが選択中の車両は `ui/util/SelectedVehicleStore` (プロセス内 `mutableStateOf`) で共有
-- 燃費計算は `domain/FuelEconomy.kt` に UI 非依存で切り出し。テスト容易性のためにこの分離を維持すること
+- 燃費計算は `domain/FuelEconomy.kt`、整備周期判定は `domain/MaintenanceSchedule.kt` に UI 非依存で切り出し。テスト容易性のためにこの分離を維持すること
 
 ### データモデル
 
-`Vehicle 1 — N Refuel / Maintenance`。外部キーは `onDelete = CASCADE`。スキーマ変更時は `AppDatabase.version` を上げ、開発段階を抜けたら `fallbackToDestructiveMigration` を外して Migration を書くこと。
+`Vehicle 1 — N (Refuel | Maintenance | ScheduleOverride)`。外部キーは `onDelete = CASCADE`。
+`AppDatabase` は **本物の `Migration` を書く運用**に切り替え済み (`fallbackToDestructiveMigration` は使っていない)。スキーマ変更時は `version` を上げ、対応する `Migration` を `addMigrations(...)` に追加する。既存の `MIGRATION_1_2` (schedule_overrides テーブル追加) が雛形。
+
+### ホーム画面ウィジェット → 給油追加
+
+- `widget/RefuelShortcutWidget.kt` に 1x1 / 2x1 の 2 種類の `AppWidgetProvider` を登録
+- ウィジェットタップで `MainActivity` を `ACTION_ADD_REFUEL` 付き explicit intent で起動
+- `MainActivity` は受信した action を `MutableStateFlow` に保持 → `AppRoot(pendingAction = ...)` に流し、`LaunchedEffect` で `navigate("refuelAdd/0")` する
+- 新しいショートカット系の入口を追加するときも、explicit intent + action 文字列 + AppRoot 側のディスパッチに揃える (deep link XML は使っていない)
 
 ### 燃費ロジックの不変条件
 
@@ -58,11 +66,26 @@ Android SDK は `~/Android/Sdk` を想定。`local.properties` の `sdk.dir` で
 
 ```
 app/src/main/java/com/chun/carlife/
-├── data/        Entity, DAO, AppDatabase
-├── domain/      UI 非依存のロジック (FuelEconomy)
+├── CarLifeApp.kt / MainActivity.kt
+├── data/        Entity, DAO, AppDatabase, CsvImport (RefuelCsvImporter)
+├── domain/      UI 非依存のロジック (FuelEconomy, MaintenanceSchedule)
+├── widget/      ホーム画面ウィジェット (RefuelShortcutWidget 1x1/2x1)
 └── ui/
-    ├── theme/   Material3 テーマ
-    ├── util/    フォーマッタ, VehiclePicker, SelectedVehicleStore, rememberDatabase
-    ├── vehicles/, refuel/, maintenance/, stats/
+    ├── theme/      Material3 テーマ
+    ├── util/       フォーマッタ, VehiclePicker, SelectedVehicleStore, rememberDatabase, SettingsAction
+    ├── vehicles/   一覧・編集
+    ├── refuel/     一覧・追加 (ウィザード) ・編集
+    ├── maintenance/一覧・編集・MaintenancePresets
+    ├── stats/      集計・グラフ
+    ├── settings/   設定トップ / 一般 / 車両 / 給油 (+CSV インポート) / 整備 / 集計
     └── AppRoot.kt
+```
+
+ウィジェット関連リソース:
+
+```
+app/src/main/res/
+├── layout/widget_refuel_shortcut_{1x1,2x1}.xml
+├── xml/refuel_shortcut_widget_info_{1x1,2x1}.xml
+└── drawable/ic_widget_refuel.xml, widget_refuel_shortcut_*.xml
 ```
