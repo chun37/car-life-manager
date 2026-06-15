@@ -15,6 +15,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -41,6 +42,8 @@ import com.chun.carlife.ui.settings.SettingsStatsScreen
 import com.chun.carlife.ui.settings.SettingsVehiclesScreen
 import com.chun.carlife.ui.stats.StatsScreen
 
+const val ACTION_ADD_REFUEL = "com.chun.carlife.action.ADD_REFUEL"
+
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
@@ -51,7 +54,7 @@ private val tabs = listOf(
 )
 
 @Composable
-fun AppRoot() {
+fun AppRoot(pendingAction: String? = null, onActionConsumed: () -> Unit = {}) {
     CarLifeTheme {
         val navController = rememberNavController()
         Scaffold(
@@ -174,6 +177,12 @@ fun AppRoot() {
                 }
                 composable("settings/stats") {
                     SettingsStatsScreen(onBack = { navController.popBackStack() })
+                }
+            }
+            LaunchedEffect(pendingAction) {
+                if (pendingAction == ACTION_ADD_REFUEL) {
+                    navController.navigate("refuelAdd/0")
+                    onActionConsumed()
                 }
             }
         }
