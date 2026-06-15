@@ -1,6 +1,7 @@
 package com.chun.carlife.ui.refuel
 
 import android.app.DatePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,16 +11,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -38,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Refuel
 import com.chun.carlife.data.Vehicle
 import com.chun.carlife.ui.util.SelectedVehicleStore
-import com.chun.carlife.ui.util.VehiclePicker
 import com.chun.carlife.ui.util.formatDate
 import com.chun.carlife.ui.util.formatKm
 import com.chun.carlife.ui.util.formatLiters
@@ -178,8 +182,60 @@ private fun StepVehicle(vehicles: List<Vehicle>, selected: Vehicle?, onSelect: (
     StepHeader("どの車両の給油ですか？")
     if (vehicles.isEmpty()) {
         Text("先に「車両」タブから車両を登録してください。")
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        vehicles.forEach { v ->
+            VehicleSelectCard(
+                vehicle = v,
+                isSelected = v.id == selected?.id,
+                onClick = { onSelect(v) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun VehicleSelectCard(vehicle: Vehicle, isSelected: Boolean, onClick: () -> Unit) {
+    val container = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
     } else {
-        VehiclePicker(vehicles = vehicles, selected = selected, onSelect = onSelect)
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = container,
+        contentColor = content,
+        tonalElevation = if (isSelected) 4.dp else 0.dp,
+        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(vehicle.name, style = MaterialTheme.typography.titleLarge)
+                val sub = listOfNotNull(
+                    vehicle.maker.takeIf { it.isNotBlank() },
+                    vehicle.model.takeIf { it.isNotBlank() },
+                    vehicle.plateNumber.takeIf { it.isNotBlank() },
+                ).joinToString(" / ")
+                if (sub.isNotBlank()) {
+                    Text(sub, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            if (isSelected) {
+                Icon(imageVector = Icons.Filled.CheckCircle, contentDescription = "選択中")
+            }
+        }
     }
 }
 
