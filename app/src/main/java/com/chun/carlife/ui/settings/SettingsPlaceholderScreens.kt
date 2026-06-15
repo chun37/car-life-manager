@@ -10,13 +10,6 @@ fun SettingsVehiclesScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun SettingsMaintenanceScreen(onBack: () -> Unit) {
-    SettingsScaffold(title = "整備", onBack = onBack) { padding ->
-        SettingsEmptyContent(padding)
-    }
-}
-
-@Composable
 fun SettingsStatsScreen(onBack: () -> Unit) {
     SettingsScaffold(title = "集計", onBack = onBack) { padding ->
         SettingsEmptyContent(padding)
