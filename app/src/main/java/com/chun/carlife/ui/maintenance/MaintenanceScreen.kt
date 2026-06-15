@@ -29,13 +29,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.chun.carlife.data.Maintenance
+import com.chun.carlife.domain.MaintenanceSchedule
+import com.chun.carlife.domain.ScheduleStatus
 import com.chun.carlife.ui.util.SelectedVehicleStore
 import com.chun.carlife.ui.util.VehiclePicker
 import com.chun.carlife.ui.util.formatDate
 import com.chun.carlife.ui.util.formatKm
 import com.chun.carlife.ui.util.formatMoney
+import com.chun.carlife.ui.util.formatRemainingDays
+import com.chun.carlife.ui.util.formatRemainingKm
 import com.chun.carlife.ui.util.rememberDatabase
 import com.chun.carlife.ui.util.rememberDefaultVehicleId
 import com.chun.carlife.ui.util.rememberVehicles
@@ -56,6 +61,10 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
     val list by remember(selected?.id) {
         if (selected == null) kotlinx.coroutines.flow.flowOf(emptyList())
         else db.maintenanceDao().observeByVehicle(selected.id)
+    }.collectAsState(initial = emptyList())
+    val refuels by remember(selected?.id) {
+        if (selected == null) kotlinx.coroutines.flow.flowOf(emptyList())
+        else db.refuelDao().observeByVehicle(selected.id)
     }.collectAsState(initial = emptyList())
 
     Scaffold(
@@ -83,18 +92,100 @@ fun MaintenanceScreen(onAdd: (Long) -> Unit, onEdit: (Long, Long) -> Unit) {
                 }
                 else -> {
                     VehiclePicker(vehicles = vehicles, selected = selected, onSelect = { selectedId = it.id })
-                    if (list.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("整備記録はまだありません。")
+                    val currentOdo = maxOf(
+                        selected?.initialOdometer ?: 0,
+                        refuels.maxOfOrNull { it.odometer } ?: 0,
+                        list.maxOfOrNull { it.odometer } ?: 0,
+                    )
+                    val statuses = remember(list, currentOdo) {
+                        MaintenanceSchedule.computeStatuses(list, currentOdo)
+                    }
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        item("schedule-header") {
+                            SectionHeader("メンテナンス予定")
                         }
-                    } else {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(list, key = { it.id }) { m ->
+                        items(statuses, key = { "sched-${it.item.category}" }) { s ->
+                            ScheduleCard(s)
+                        }
+                        item("records-header") {
+                            SectionHeader("履歴", topPadding = 12.dp)
+                        }
+                        if (list.isEmpty()) {
+                            item("records-empty") {
+                                Text(
+                                    "整備記録はまだありません。",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(8.dp),
+                                )
+                            }
+                        } else {
+                            items(list, key = { "rec-${it.id}" }) { m ->
                                 MaintenanceRow(m, onClick = { onEdit(selected!!.id, m.id) })
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String, topPadding: androidx.compose.ui.unit.Dp = 0.dp) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(top = topPadding, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun ScheduleCard(s: ScheduleStatus) {
+    val containerColor = when {
+        s.isOverdue -> MaterialTheme.colorScheme.errorContainer
+        s.isSoon -> Color(0xFFFFF4E5)
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = when {
+        s.isOverdue -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = containerColor, contentColor = contentColor),
+        elevation = CardDefaults.cardElevation(1.dp),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(s.item.category, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = if (!s.hasHistory) "履歴なし" else if (s.isOverdue) "要交換" else if (s.isSoon) "もうすぐ" else "OK",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            if (!s.hasHistory) {
+                val interval = buildString {
+                    s.item.intervalKm?.let { append("${it / 1000}千km") }
+                    if (s.item.intervalKm != null && s.item.intervalMonths != null) append(" / ")
+                    s.item.intervalMonths?.let { append("${it}ヶ月") }
+                }
+                Text("$interval ごと", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                val parts = listOfNotNull(
+                    s.kmLeft?.let { formatRemainingKm(it) },
+                    s.daysLeft?.let { formatRemainingDays(it) },
+                )
+                Text(
+                    text = parts.joinToString(" / "),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "前回: ${formatDate(s.lastDate!!)}  ${formatKm(s.lastOdometer ?: 0)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }

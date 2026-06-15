@@ -22,3 +22,15 @@ fun monthKey(epochMillis: Long): String {
     val cal = Calendar.getInstance().apply { timeInMillis = epochMillis }
     return String.format(Locale.US, "%04d-%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
 }
+
+fun formatRemainingKm(kmLeft: Int): String = when {
+    kmLeft >= 0 -> "あと " + moneyFmt.format(kmLeft) + " km"
+    else -> moneyFmt.format(-kmLeft) + " km 超過"
+}
+
+fun formatRemainingDays(daysLeft: Int): String = when {
+    daysLeft >= 30 -> "あと " + (daysLeft / 30) + " ヶ月"
+    daysLeft >= 0 -> "あと " + daysLeft + " 日"
+    daysLeft > -30 -> (-daysLeft).toString() + " 日超過"
+    else -> ((-daysLeft) / 30).toString() + " ヶ月超過"
+}
